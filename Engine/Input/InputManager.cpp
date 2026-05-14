@@ -13,7 +13,11 @@ void InputManager::Update()
     memcpy(m_Previous, m_Current, sizeof(m_Current));
     for (int i = 0; i < 256; ++i)
         m_Current[i] = GetAsyncKeyState(i);
+
+    m_PrevMousePos = m_MousePos;
     GetCursorPos(&m_MousePos);
+    m_MouseDelta.x = m_MousePos.x - m_PrevMousePos.x;
+    m_MouseDelta.y = m_MousePos.y - m_PrevMousePos.y;
 }
 
 bool InputManager::IsKeyDown(KeyCode key) const

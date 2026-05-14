@@ -21,7 +21,6 @@ void SandboxApp::OnInit()
         return;
     }
 
-    // Build initial mesh via command list (before first render)
     m_DX12.BeginFrame();
     m_Mesh = std::make_shared<Mesh>(
         Mesh::CreateCube(m_DX12.GetDevice(), m_DX12.GetCommandList()));
@@ -34,19 +33,18 @@ void SandboxApp::OnInit()
         return;
     }
 
-    // Scene setup
     auto* scene = SceneManager::Get().CreateScene("Main");
     SceneManager::Get().LoadScene("Main");
 
+    // Camera: start at (0, 0, -3), looking toward +Z (at the cube)
     auto* camGO = scene->CreateGameObject("Camera");
     camGO->AddComponent<Camera>();
-    camGO->GetTransform()->SetPosition({ 0.f, 0.f, -3.f }); // pull back so triangle at z=0 is visible
-    auto* cam = camGO->GetComponent<Camera>();
-    cam->SetAspect(1280.f / 720.f);
+    camGO->GetTransform()->SetPosition({ 0.f, 0.f, -3.f });
+    camGO->GetComponent<Camera>()->SetAspect(1280.f / 720.f);
 
-    // Triangle GameObject
-    m_Triangle = scene->CreateGameObject("Triangle");
-    auto* mr = m_Triangle->AddComponent<MeshRenderer>();
+    // Cube
+    m_Cube = scene->CreateGameObject("Cube");
+    auto* mr = m_Cube->AddComponent<MeshRenderer>();
     mr->SetMesh(m_Mesh);
     mr->SetPipeline(&m_Pipeline);
     mr->SetCommandList(m_DX12.GetCommandList());
@@ -55,17 +53,17 @@ void SandboxApp::OnInit()
 
 void SandboxApp::OnUpdate(float dt)
 {
-    if (!m_Triangle) return;
-    auto* t = m_Triangle->GetTransform();
-    auto& input = InputManager::Get();
+    if (!m_Cube) return;
+    auto* t   = m_Cube->GetTransform();
+    auto& inp = InputManager::Get();
 
-    const float speed = 90.0f; // degrees per second
-
-    if (input.IsKeyDown(KeyCode::Left))  t->Rotate(-speed * dt, 0.f, 0.f);
-    if (input.IsKeyDown(KeyCode::Right)) t->Rotate( speed * dt, 0.f, 0.f);
-    if (input.IsKeyDown(KeyCode::Up))    t->Rotate(0.f, -speed * dt, 0.f);
-    if (input.IsKeyDown(KeyCode::Down))  t->Rotate(0.f,  speed * dt, 0.f);
-    if (input.IsKeyDown(KeyCode::Space)) t->Rotate(0.f, speed * dt, speed * dt * 0.3f);
+    // Arrow keys: rotate the cube
+    const float speed = 90.0f;
+    if (inp.IsKeyDown(KeyCode::Left))  t->Rotate(-speed * dt, 0.f, 0.f);
+    if (inp.IsKeyDown(KeyCode::Right)) t->Rotate( speed * dt, 0.f, 0.f);
+    if (inp.IsKeyDown(KeyCode::Up))    t->Rotate(0.f, -speed * dt, 0.f);
+    if (inp.IsKeyDown(KeyCode::Down))  t->Rotate(0.f,  speed * dt, 0.f);
+    if (inp.IsKeyDown(KeyCode::Space)) t->Rotate(0.f,  speed * dt, speed * dt * 0.3f);
 }
 
 void SandboxApp::OnRender()

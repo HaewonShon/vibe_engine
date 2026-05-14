@@ -29,6 +29,7 @@ public:
     bool IsKeyReleased(KeyCode key) const; // release frame only
 
     POINT GetMousePosition() const { return m_MousePos; }
+    POINT GetMouseDelta()    const { return m_MouseDelta; }
     bool  IsMouseButtonDown(int button) const; // 0=left, 1=right, 2=middle
 
 private:
@@ -37,6 +38,8 @@ private:
     SHORT m_Current [256] = {};
     SHORT m_Previous[256] = {};
     POINT m_MousePos      = {};
+    POINT m_PrevMousePos  = {};
+    POINT m_MouseDelta    = {};
 };
 
 } // namespace VibeEngine

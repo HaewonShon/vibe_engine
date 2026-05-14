@@ -21,6 +21,5 @@ private:
     VibeEngine::BasicPipeline m_Pipeline;
     std::shared_ptr<VibeEngine::Mesh> m_Mesh;
 
-    VibeEngine::GameObject* m_Triangle = nullptr;
-    bool m_MeshUploaded = false;
+    VibeEngine::GameObject* m_Cube = nullptr;
 };
