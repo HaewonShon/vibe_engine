@@ -1,6 +1,8 @@
 #include "Application.h"
 #include "../Input/InputManager.h"
 #include "../Core/SceneManager.h"
+#include "../Core/Profiler.h"
+#include "../Core/Log.h"
 
 namespace VibeEngine {
 
@@ -34,6 +36,8 @@ void Application::MainLoop()
     float fpsAccum  = 0.0f;
     int   fpsFrames = 0;
 
+    LOG_INFO("Application loop started.");
+
     while (m_Running) {
         if (!m_Window->PollEvents()) {
             m_Running = false;
@@ -46,27 +50,39 @@ void Application::MainLoop()
                  / static_cast<float>(m_Frequency.QuadPart);
         m_LastTime = now;
 
+        Profiler::Get().BeginFrame();
         InputManager::Get().Update();
 
-        // Update active scene
-        auto* scene = SceneManager::Get().GetActiveScene();
-        if (scene) scene->Update(dt);
+        {
+            PROFILE_SCOPE("Update");
+            auto* scene = SceneManager::Get().GetActiveScene();
+            if (scene) scene->Update(dt);
+            OnUpdate(dt);
+        }
 
-        OnUpdate(dt);
-        OnRender();
+        {
+            PROFILE_SCOPE("Render");
+            OnRender();
+        }
 
-        // FPS counter
+        // FPS + profiler title bar
         fpsAccum += dt;
         ++fpsFrames;
         if (fpsAccum >= 0.5f) {
-            float fps = static_cast<float>(fpsFrames) / fpsAccum;
-            char buf[128];
-            snprintf(buf, sizeof(buf), "VibeEngine | %.1f FPS", fps);
+            float fps      = static_cast<float>(fpsFrames) / fpsAccum;
+            float updateMs = Profiler::Get().GetMs("Update");
+            float renderMs = Profiler::Get().GetMs("Render");
+            char buf[256];
+            snprintf(buf, sizeof(buf),
+                "VibeEngine | %.1f FPS | Update: %.2f ms | Render: %.2f ms",
+                fps, updateMs, renderMs);
             m_Window->SetTitle(buf);
             fpsAccum  = 0.0f;
             fpsFrames = 0;
         }
     }
+
+    LOG_INFO("Application loop ended.");
 }
 
 } // namespace VibeEngine
