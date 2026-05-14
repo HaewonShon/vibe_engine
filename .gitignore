@@ -1,6 +1,7 @@
 # Build output
 Build/
 bin/
+bin-int/
 obj/
 x64/
 x86/
