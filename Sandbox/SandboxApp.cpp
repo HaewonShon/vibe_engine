@@ -38,9 +38,9 @@ void SandboxApp::OnInit()
     auto* scene = SceneManager::Get().CreateScene("Main");
     SceneManager::Get().LoadScene("Main");
 
-    // Camera GameObject at origin (Camera code looks from z=-3 by default)
     auto* camGO = scene->CreateGameObject("Camera");
     camGO->AddComponent<Camera>();
+    camGO->GetTransform()->SetPosition({ 0.f, 0.f, -3.f }); // pull back so triangle at z=0 is visible
     auto* cam = camGO->GetComponent<Camera>();
     cam->SetAspect(1280.f / 720.f);
 
