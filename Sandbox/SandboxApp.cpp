@@ -4,8 +4,17 @@
 #include "Renderer/Camera.h"
 #include "Renderer/MeshRenderer.h"
 #include "Input/InputManager.h"
+#include <string>
 
 using namespace VibeEngine;
+
+static std::wstring GetExeDir()
+{
+    wchar_t buf[MAX_PATH];
+    GetModuleFileNameW(nullptr, buf, MAX_PATH);
+    std::wstring path(buf);
+    return path.substr(0, path.find_last_of(L"\\/") + 1);
+}
 
 SandboxApp::SandboxApp()
     : Application("VibeEngine Sandbox", 1280, 720)
@@ -24,9 +33,12 @@ void SandboxApp::OnInit()
     m_DX12.BeginFrame();
     m_Mesh = std::make_shared<Mesh>(
         Mesh::CreateCube(m_DX12.GetDevice(), m_DX12.GetCommandList()));
+    m_Texture.LoadFromFile(m_DX12.GetDevice(), m_DX12.GetCommandList(), m_DX12,
+        GetExeDir() + L"Textures/checkerboard.png");
     m_DX12.EndFrame();
     m_DX12.WaitForGPU();
     m_Mesh->ReleaseUploadBuffers();
+    m_Texture.ReleaseUploadBuffer();
 
     if (!m_Pipeline.Create(m_DX12.GetDevice(), m_DX12.GetBackBufferFormat())) {
         MessageBoxA(hwnd, "Pipeline create failed", "Error", MB_OK | MB_ICONERROR);
@@ -44,10 +56,13 @@ void SandboxApp::OnInit()
 
     // Cube
     m_Cube = scene->CreateGameObject("Cube");
+    m_Cube->GetTransform()->SetRotation({ 25.f, 35.f, 0.f });
+
     auto* mr = m_Cube->AddComponent<MeshRenderer>();
     mr->SetMesh(m_Mesh);
     mr->SetPipeline(&m_Pipeline);
     mr->SetCommandList(m_DX12.GetCommandList());
+    mr->SetTexture(&m_Texture);
     mr->CreateConstantBuffer(m_DX12.GetDevice());
 }
 

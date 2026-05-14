@@ -19,13 +19,25 @@ Window::Window(const WindowProps& props)
 
     RECT rc = { 0, 0, m_Width, m_Height };
     AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
+    int winW = rc.right - rc.left;
+    int winH = rc.bottom - rc.top;
 
-    int screenW = GetSystemMetrics(SM_CXSCREEN);
-    int screenH = GetSystemMetrics(SM_CYSCREEN);
-    int winW    = rc.right - rc.left;
-    int winH    = rc.bottom - rc.top;
-    int posX    = (screenW - winW) / 2;
-    int posY    = (screenH - winH) / 2;
+    // Find the rightmost monitor
+    struct MonitorSearch { RECT best; int maxLeft; };
+    MonitorSearch ms = { {}, INT_MIN };
+    EnumDisplayMonitors(nullptr, nullptr, [](HMONITOR hm, HDC, LPRECT, LPARAM lp) -> BOOL {
+        auto* s = reinterpret_cast<MonitorSearch*>(lp);
+        MONITORINFO mi = { sizeof(mi) };
+        GetMonitorInfoA(hm, &mi);
+        if (mi.rcMonitor.left > s->maxLeft) {
+            s->maxLeft = mi.rcMonitor.left;
+            s->best    = mi.rcWork;
+        }
+        return TRUE;
+    }, reinterpret_cast<LPARAM>(&ms));
+
+    int posX = ms.best.left + (ms.best.right  - ms.best.left - winW) / 2;
+    int posY = ms.best.top  + (ms.best.bottom - ms.best.top  - winH) / 2;
 
     m_Hwnd = CreateWindowExA(
         0, CLASS_NAME, props.Title.c_str(),

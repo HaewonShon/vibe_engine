@@ -30,17 +30,43 @@ void BasicPipeline::Destroy()
 
 bool BasicPipeline::CreateRootSignature(ID3D12Device* device)
 {
-    // One root CBV at b0 (per-object MVP)
-    D3D12_ROOT_PARAMETER param = {};
-    param.ParameterType            = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    param.Descriptor.ShaderRegister = 0;
-    param.Descriptor.RegisterSpace  = 0;
-    param.ShaderVisibility          = D3D12_SHADER_VISIBILITY_VERTEX;
+    // [0] Root CBV b0 — MVP matrix (vertex shader)
+    D3D12_ROOT_PARAMETER params[2] = {};
+    params[0].ParameterType             = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    params[0].Descriptor.ShaderRegister = 0;
+    params[0].Descriptor.RegisterSpace  = 0;
+    params[0].ShaderVisibility          = D3D12_SHADER_VISIBILITY_VERTEX;
+
+    // [1] Descriptor table: 1 SRV at t0 (pixel shader)
+    D3D12_DESCRIPTOR_RANGE srvRange = {};
+    srvRange.RangeType                         = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    srvRange.NumDescriptors                    = 1;
+    srvRange.BaseShaderRegister                = 0;
+    srvRange.RegisterSpace                     = 0;
+    srvRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    params[1].ParameterType                       = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[1].DescriptorTable.NumDescriptorRanges = 1;
+    params[1].DescriptorTable.pDescriptorRanges   = &srvRange;
+    params[1].ShaderVisibility                    = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    // Static linear sampler at s0
+    D3D12_STATIC_SAMPLER_DESC sampler = {};
+    sampler.Filter           = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    sampler.AddressU         = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    sampler.AddressV         = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    sampler.AddressW         = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    sampler.MaxLOD           = D3D12_FLOAT32_MAX;
+    sampler.ShaderRegister   = 0;
+    sampler.RegisterSpace    = 0;
+    sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
     D3D12_ROOT_SIGNATURE_DESC desc = {};
-    desc.NumParameters = 1;
-    desc.pParameters   = &param;
-    desc.Flags         = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+    desc.NumParameters     = 2;
+    desc.pParameters       = params;
+    desc.NumStaticSamplers = 1;
+    desc.pStaticSamplers   = &sampler;
+    desc.Flags             = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
     ComPtr<ID3DBlob> blob, errors;
     HRESULT hr = D3D12SerializeRootSignature(&desc,
@@ -70,10 +96,11 @@ bool BasicPipeline::CreatePSO(ID3D12Device* device, DXGI_FORMAT rtvFormat)
     D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0,  0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, 28, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
     };
 
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-    psoDesc.InputLayout            = { inputLayout, 2 };
+    psoDesc.InputLayout            = { inputLayout, 3 };
     psoDesc.pRootSignature         = m_RootSignature.Get();
     psoDesc.VS                     = { vs->GetBufferPointer(), vs->GetBufferSize() };
     psoDesc.PS                     = { ps->GetBufferPointer(), ps->GetBufferSize() };

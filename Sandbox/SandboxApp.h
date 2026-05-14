@@ -3,6 +3,7 @@
 #include "Renderer/DX12Context.h"
 #include "Renderer/BasicPipeline.h"
 #include "Renderer/Mesh.h"
+#include "Renderer/Texture.h"
 #include "Core/GameObject.h"
 #include <memory>
 
@@ -17,9 +18,10 @@ public:
     void OnShutdown()       override;
 
 private:
-    VibeEngine::DX12Context  m_DX12;
+    VibeEngine::DX12Context   m_DX12;
     VibeEngine::BasicPipeline m_Pipeline;
     std::shared_ptr<VibeEngine::Mesh> m_Mesh;
+    VibeEngine::Texture       m_Texture;
 
     VibeEngine::GameObject* m_Cube = nullptr;
 };

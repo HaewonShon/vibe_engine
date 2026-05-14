@@ -39,6 +39,7 @@ bool DX12Context::Initialize(HWND hwnd, UINT width, UINT height)
         CreateCommandQueue();
         CreateSwapChain(hwnd, width, height);
         CreateRTVHeap();
+        CreateSRVHeap();
         CreateBackBuffers();
         CreateDepthBuffer();
         CreateCommandAllocators();
@@ -202,6 +203,29 @@ void DX12Context::CreateDepthBuffer()
         m_DSVHeap->GetCPUDescriptorHandleForHeapStart());
 }
 
+void DX12Context::CreateSRVHeap()
+{
+    D3D12_DESCRIPTOR_HEAP_DESC desc = {};
+    desc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    desc.NumDescriptors = SRV_HEAP_CAPACITY;
+    desc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    ThrowIfFailed(m_Device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&m_SRVHeap)),
+                  "CreateDescriptorHeap SRV");
+    m_SRVDescriptorSize = m_Device->GetDescriptorHandleIncrementSize(
+        D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+}
+
+DX12Context::SRVAllocation DX12Context::AllocateSRV()
+{
+    UINT idx = m_SRVAllocCount++;
+    SRVAllocation alloc;
+    alloc.cpu     = OffsetHandle(m_SRVHeap->GetCPUDescriptorHandleForHeapStart(),
+                                 static_cast<int>(idx), m_SRVDescriptorSize);
+    alloc.gpu.ptr = m_SRVHeap->GetGPUDescriptorHandleForHeapStart().ptr
+                  + static_cast<UINT64>(idx) * m_SRVDescriptorSize;
+    return alloc;
+}
+
 void DX12Context::CreateCommandAllocators()
 {
     for (UINT i = 0; i < FRAME_COUNT; ++i)
@@ -242,6 +266,9 @@ void DX12Context::BeginFrame()
     D3D12_RECT     sc = { 0, 0, static_cast<LONG>(m_Width), static_cast<LONG>(m_Height) };
     m_CommandList->RSSetViewports(1, &vp);
     m_CommandList->RSSetScissorRects(1, &sc);
+
+    ID3D12DescriptorHeap* heaps[] = { m_SRVHeap.Get() };
+    m_CommandList->SetDescriptorHeaps(1, heaps);
 
     auto rtv = OffsetHandle(m_RTVHeap->GetCPUDescriptorHandleForHeapStart(),
                             m_BackBufferIndex, m_RTVDescriptorSize);

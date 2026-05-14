@@ -59,7 +59,7 @@
       <AdditionalDependencies>Engine.lib;d3d12.lib;dxgi.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /Y /D "$(SolutionDir)Assets\Shaders\*" "$(OutDir)Shaders\"</Command>
+      <Command>xcopy /Y /D "$(SolutionDir)Assets\Shaders\*" "$(OutDir)Shaders\" &amp;&amp; xcopy /Y /D "$(SolutionDir)Assets\Textures\*" "$(OutDir)Textures\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -83,7 +83,7 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /Y /D "$(SolutionDir)Assets\Shaders\*" "$(OutDir)Shaders\"</Command>
+      <Command>xcopy /Y /D "$(SolutionDir)Assets\Shaders\*" "$(OutDir)Shaders\" &amp;&amp; xcopy /Y /D "$(SolutionDir)Assets\Textures\*" "$(OutDir)Textures\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

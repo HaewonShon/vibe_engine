@@ -55,6 +55,8 @@ void MeshRenderer::Draw(const XMMATRIX& viewProj) const
     m_CmdList->IASetIndexBuffer(&m_Mesh->GetIBView());
     m_CmdList->SetGraphicsRootConstantBufferView(0,
         m_ConstantBuffer->GetGPUVirtualAddress());
+    if (m_Texture && m_Texture->IsLoaded())
+        m_CmdList->SetGraphicsRootDescriptorTable(1, m_Texture->GetSRVHandle());
     m_CmdList->DrawIndexedInstanced(m_Mesh->GetIndexCount(), 1, 0, 0, 0);
 }
 

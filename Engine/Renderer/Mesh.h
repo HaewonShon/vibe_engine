@@ -11,6 +11,7 @@ namespace VibeEngine {
 struct Vertex {
     DirectX::XMFLOAT3 Position;
     DirectX::XMFLOAT4 Color;
+    DirectX::XMFLOAT2 TexCoord;
 };
 
 class Mesh {

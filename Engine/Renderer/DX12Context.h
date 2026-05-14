@@ -33,6 +33,13 @@ public:
 
     void WaitForGPU();
 
+    struct SRVAllocation {
+        D3D12_CPU_DESCRIPTOR_HANDLE cpu;
+        D3D12_GPU_DESCRIPTOR_HANDLE gpu;
+    };
+    SRVAllocation         AllocateSRV();
+    ID3D12DescriptorHeap* GetSRVHeap() const { return m_SRVHeap.Get(); }
+
 private:
     void CreateDevice();
     void CreateCommandQueue();
@@ -43,6 +50,7 @@ private:
     void CreateCommandAllocators();
     void CreateCommandList();
     void CreateFence();
+    void CreateSRVHeap();
 
     void MoveToNextFrame();
 
@@ -56,6 +64,11 @@ private:
 
     ComPtr<ID3D12Resource>        m_DepthBuffer;
     ComPtr<ID3D12DescriptorHeap>  m_DSVHeap;
+
+    ComPtr<ID3D12DescriptorHeap> m_SRVHeap;
+    UINT m_SRVDescriptorSize = 0;
+    UINT m_SRVAllocCount     = 0;
+    static constexpr UINT SRV_HEAP_CAPACITY = 256;
 
     ComPtr<ID3D12Fence>  m_Fence;
     UINT64               m_FenceValues[FRAME_COUNT] = {};
