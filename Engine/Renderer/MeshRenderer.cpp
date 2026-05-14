@@ -1,5 +1,6 @@
 #include "MeshRenderer.h"
 #include "DX12Helpers.h"
+#include "LightManager.h"
 #include "../Core/GameObject.h"
 #include "../Core/Transform.h"
 #include <stdexcept>
@@ -10,6 +11,7 @@ namespace VibeEngine {
 
 struct PerObjectCB {
     XMFLOAT4X4 MVP;
+    XMFLOAT4X4 World;
 };
 
 MeshRenderer::MeshRenderer()  = default;
@@ -45,18 +47,21 @@ void MeshRenderer::Draw(const XMMATRIX& viewProj) const
     XMMATRIX mvp = world * viewProj;
 
     PerObjectCB cb;
-    XMStoreFloat4x4(&cb.MVP, XMMatrixTranspose(mvp)); // HLSL expects column-major
+    XMStoreFloat4x4(&cb.MVP,   XMMatrixTranspose(mvp));
+    XMStoreFloat4x4(&cb.World, XMMatrixTranspose(world));
     memcpy(m_MappedCB, &cb, sizeof(PerObjectCB));
+
+    LightManager::Get().Upload();
 
     m_CmdList->SetGraphicsRootSignature(m_Pipeline->GetRootSignature());
     m_CmdList->SetPipelineState(m_Pipeline->GetPSO());
     m_CmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     m_CmdList->IASetVertexBuffers(0, 1, &m_Mesh->GetVBView());
     m_CmdList->IASetIndexBuffer(&m_Mesh->GetIBView());
-    m_CmdList->SetGraphicsRootConstantBufferView(0,
-        m_ConstantBuffer->GetGPUVirtualAddress());
+    m_CmdList->SetGraphicsRootConstantBufferView(0, m_ConstantBuffer->GetGPUVirtualAddress());
+    m_CmdList->SetGraphicsRootConstantBufferView(1, LightManager::Get().GetGPUAddress());
     if (m_Texture && m_Texture->IsLoaded())
-        m_CmdList->SetGraphicsRootDescriptorTable(1, m_Texture->GetSRVHandle());
+        m_CmdList->SetGraphicsRootDescriptorTable(2, m_Texture->GetSRVHandle());
     m_CmdList->DrawIndexedInstanced(m_Mesh->GetIndexCount(), 1, 0, 0, 0);
 }
 

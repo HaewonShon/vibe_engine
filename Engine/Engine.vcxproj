@@ -91,6 +91,7 @@
     <ClInclude Include="Renderer\MeshRenderer.h" />
     <ClInclude Include="Renderer\Shader.h" />
     <ClInclude Include="Renderer\Texture.h" />
+    <ClInclude Include="Renderer\LightManager.h" />
     <ClInclude Include="Core\Log.h" />
     <ClInclude Include="Core\Profiler.h" />
   </ItemGroup>
@@ -109,6 +110,7 @@
     <ClCompile Include="Renderer\MeshRenderer.cpp" />
     <ClCompile Include="Renderer\Shader.cpp" />
     <ClCompile Include="Renderer\Texture.cpp" />
+    <ClCompile Include="Renderer\LightManager.cpp" />
     <ClCompile Include="Core\Log.cpp" />
     <ClCompile Include="Core\Profiler.cpp" />
   </ItemGroup>

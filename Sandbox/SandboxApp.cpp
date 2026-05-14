@@ -3,6 +3,7 @@
 #include "Core/Transform.h"
 #include "Renderer/Camera.h"
 #include "Renderer/MeshRenderer.h"
+#include "Renderer/LightManager.h"
 #include "Input/InputManager.h"
 #include <string>
 
@@ -39,6 +40,8 @@ void SandboxApp::OnInit()
     m_DX12.WaitForGPU();
     m_Mesh->ReleaseUploadBuffers();
     m_Texture.ReleaseUploadBuffer();
+
+    LightManager::Get().Initialize(m_DX12.GetDevice());
 
     if (!m_Pipeline.Create(m_DX12.GetDevice(), m_DX12.GetBackBufferFormat())) {
         MessageBoxA(hwnd, "Pipeline create failed", "Error", MB_OK | MB_ICONERROR);
