@@ -39,6 +39,7 @@ private:
     void CreateSwapChain(HWND hwnd, UINT width, UINT height);
     void CreateRTVHeap();
     void CreateBackBuffers();
+    void CreateDepthBuffer();
     void CreateCommandAllocators();
     void CreateCommandList();
     void CreateFence();
@@ -52,6 +53,9 @@ private:
     ComPtr<ID3D12Resource>            m_RenderTargets[FRAME_COUNT];
     ComPtr<ID3D12CommandAllocator>    m_CommandAllocators[FRAME_COUNT];
     ComPtr<ID3D12GraphicsCommandList> m_CommandList;
+
+    ComPtr<ID3D12Resource>        m_DepthBuffer;
+    ComPtr<ID3D12DescriptorHeap>  m_DSVHeap;
 
     ComPtr<ID3D12Fence>  m_Fence;
     UINT64               m_FenceValues[FRAME_COUNT] = {};

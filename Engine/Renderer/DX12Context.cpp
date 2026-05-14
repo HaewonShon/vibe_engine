@@ -40,6 +40,7 @@ bool DX12Context::Initialize(HWND hwnd, UINT width, UINT height)
         CreateSwapChain(hwnd, width, height);
         CreateRTVHeap();
         CreateBackBuffers();
+        CreateDepthBuffer();
         CreateCommandAllocators();
         CreateCommandList();
         CreateFence();
@@ -161,6 +162,46 @@ void DX12Context::CreateBackBuffers()
     }
 }
 
+void DX12Context::CreateDepthBuffer()
+{
+    // DSV descriptor heap (1 descriptor, non-shader-visible)
+    D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+    heapDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+    heapDesc.NumDescriptors = 1;
+    heapDesc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+    ThrowIfFailed(m_Device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_DSVHeap)),
+                  "CreateDescriptorHeap DSV");
+
+    D3D12_RESOURCE_DESC depthDesc = {};
+    depthDesc.Dimension          = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    depthDesc.Width              = m_Width;
+    depthDesc.Height             = m_Height;
+    depthDesc.DepthOrArraySize   = 1;
+    depthDesc.MipLevels          = 1;
+    depthDesc.Format             = DXGI_FORMAT_D32_FLOAT;
+    depthDesc.SampleDesc         = { 1, 0 };
+    depthDesc.Flags              = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+    D3D12_CLEAR_VALUE clearVal = {};
+    clearVal.Format               = DXGI_FORMAT_D32_FLOAT;
+    clearVal.DepthStencil.Depth   = 1.0f;
+    clearVal.DepthStencil.Stencil = 0;
+
+    auto hp = HeapProps(D3D12_HEAP_TYPE_DEFAULT);
+    ThrowIfFailed(m_Device->CreateCommittedResource(
+        &hp, D3D12_HEAP_FLAG_NONE, &depthDesc,
+        D3D12_RESOURCE_STATE_DEPTH_WRITE, &clearVal,
+        IID_PPV_ARGS(&m_DepthBuffer)),
+        "CreateCommittedResource DepthBuffer");
+
+    D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+    dsvDesc.Format        = DXGI_FORMAT_D32_FLOAT;
+    dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+    m_Device->CreateDepthStencilView(
+        m_DepthBuffer.Get(), &dsvDesc,
+        m_DSVHeap->GetCPUDescriptorHandleForHeapStart());
+}
+
 void DX12Context::CreateCommandAllocators()
 {
     for (UINT i = 0; i < FRAME_COUNT; ++i)
@@ -204,10 +245,12 @@ void DX12Context::BeginFrame()
 
     auto rtv = OffsetHandle(m_RTVHeap->GetCPUDescriptorHandleForHeapStart(),
                             m_BackBufferIndex, m_RTVDescriptorSize);
-    m_CommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+    auto dsv = m_DSVHeap->GetCPUDescriptorHandleForHeapStart();
+    m_CommandList->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
 
     static constexpr float CLEAR_COLOR[] = { 0.1f, 0.18f, 0.36f, 1.0f }; // cobalt blue
     m_CommandList->ClearRenderTargetView(rtv, CLEAR_COLOR, 0, nullptr);
+    m_CommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 }
 
 void DX12Context::EndFrame()
@@ -257,6 +300,7 @@ void DX12Context::Resize(UINT width, UINT height)
 
     for (UINT i = 0; i < FRAME_COUNT; ++i)
         m_RenderTargets[i].Reset();
+    m_DepthBuffer.Reset();
 
     m_Width  = width;
     m_Height = height;
@@ -264,6 +308,7 @@ void DX12Context::Resize(UINT width, UINT height)
         DXGI_FORMAT_R8G8B8A8_UNORM, 0);
     m_BackBufferIndex = m_SwapChain->GetCurrentBackBufferIndex();
     CreateBackBuffers();
+    CreateDepthBuffer();
 }
 
 } // namespace VibeEngine

@@ -104,4 +104,55 @@ Mesh Mesh::CreateTriangle(ID3D12Device* device, ID3D12GraphicsCommandList* cmdLi
     return mesh;
 }
 
+Mesh Mesh::CreateCube(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
+{
+    // 24 vertices: 4 per face, each face has a distinct color family
+    std::vector<Vertex> verts = {
+        // Front  (z=+0.5) -- red
+        { { -0.5f, -0.5f,  0.5f }, { 0.9f, 0.2f, 0.2f, 1.f } },
+        { {  0.5f, -0.5f,  0.5f }, { 0.9f, 0.2f, 0.2f, 1.f } },
+        { {  0.5f,  0.5f,  0.5f }, { 1.0f, 0.4f, 0.4f, 1.f } },
+        { { -0.5f,  0.5f,  0.5f }, { 1.0f, 0.4f, 0.4f, 1.f } },
+        // Back   (z=-0.5) -- blue
+        { {  0.5f, -0.5f, -0.5f }, { 0.2f, 0.2f, 0.9f, 1.f } },
+        { { -0.5f, -0.5f, -0.5f }, { 0.2f, 0.2f, 0.9f, 1.f } },
+        { { -0.5f,  0.5f, -0.5f }, { 0.4f, 0.4f, 1.0f, 1.f } },
+        { {  0.5f,  0.5f, -0.5f }, { 0.4f, 0.4f, 1.0f, 1.f } },
+        // Left   (x=-0.5) -- green
+        { { -0.5f, -0.5f, -0.5f }, { 0.2f, 0.9f, 0.2f, 1.f } },
+        { { -0.5f, -0.5f,  0.5f }, { 0.2f, 0.9f, 0.2f, 1.f } },
+        { { -0.5f,  0.5f,  0.5f }, { 0.4f, 1.0f, 0.4f, 1.f } },
+        { { -0.5f,  0.5f, -0.5f }, { 0.4f, 1.0f, 0.4f, 1.f } },
+        // Right  (x=+0.5) -- yellow
+        { {  0.5f, -0.5f,  0.5f }, { 0.9f, 0.9f, 0.1f, 1.f } },
+        { {  0.5f, -0.5f, -0.5f }, { 0.9f, 0.9f, 0.1f, 1.f } },
+        { {  0.5f,  0.5f, -0.5f }, { 1.0f, 1.0f, 0.3f, 1.f } },
+        { {  0.5f,  0.5f,  0.5f }, { 1.0f, 1.0f, 0.3f, 1.f } },
+        // Top    (y=+0.5) -- magenta
+        { { -0.5f,  0.5f,  0.5f }, { 0.9f, 0.2f, 0.9f, 1.f } },
+        { {  0.5f,  0.5f,  0.5f }, { 0.9f, 0.2f, 0.9f, 1.f } },
+        { {  0.5f,  0.5f, -0.5f }, { 1.0f, 0.4f, 1.0f, 1.f } },
+        { { -0.5f,  0.5f, -0.5f }, { 1.0f, 0.4f, 1.0f, 1.f } },
+        // Bottom (y=-0.5) -- cyan
+        { { -0.5f, -0.5f, -0.5f }, { 0.2f, 0.9f, 0.9f, 1.f } },
+        { {  0.5f, -0.5f, -0.5f }, { 0.2f, 0.9f, 0.9f, 1.f } },
+        { {  0.5f, -0.5f,  0.5f }, { 0.4f, 1.0f, 1.0f, 1.f } },
+        { { -0.5f, -0.5f,  0.5f }, { 0.4f, 1.0f, 1.0f, 1.f } },
+    };
+
+    // 6 faces x 2 triangles x 3 indices = 36
+    std::vector<uint16_t> indices = {
+         0,  1,  2,   0,  2,  3,  // front
+         4,  5,  6,   4,  6,  7,  // back
+         8,  9, 10,   8, 10, 11,  // left
+        12, 13, 14,  12, 14, 15,  // right
+        16, 17, 18,  16, 18, 19,  // top
+        20, 21, 22,  20, 22, 23,  // bottom
+    };
+
+    Mesh mesh;
+    mesh.Create(device, cmdList, verts, indices);
+    return mesh;
+}
+
 } // namespace VibeEngine

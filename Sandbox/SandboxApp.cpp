@@ -24,7 +24,7 @@ void SandboxApp::OnInit()
     // Build initial mesh via command list (before first render)
     m_DX12.BeginFrame();
     m_Mesh = std::make_shared<Mesh>(
-        Mesh::CreateTriangle(m_DX12.GetDevice(), m_DX12.GetCommandList()));
+        Mesh::CreateCube(m_DX12.GetDevice(), m_DX12.GetCommandList()));
     m_DX12.EndFrame();
     m_DX12.WaitForGPU();
     m_Mesh->ReleaseUploadBuffers();
@@ -65,7 +65,7 @@ void SandboxApp::OnUpdate(float dt)
     if (input.IsKeyDown(KeyCode::Right)) t->Rotate( speed * dt, 0.f, 0.f);
     if (input.IsKeyDown(KeyCode::Up))    t->Rotate(0.f, -speed * dt, 0.f);
     if (input.IsKeyDown(KeyCode::Down))  t->Rotate(0.f,  speed * dt, 0.f);
-    if (input.IsKeyDown(KeyCode::Space)) t->Rotate(speed * dt * 0.5f, speed * dt, 0.f);
+    if (input.IsKeyDown(KeyCode::Space)) t->Rotate(0.f, speed * dt, speed * dt * 0.3f);
 }
 
 void SandboxApp::OnRender()

@@ -85,8 +85,11 @@ bool BasicPipeline::CreatePSO(ID3D12Device* device, DXGI_FORMAT rtvFormat)
     psoDesc.PrimitiveTopologyType  = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     psoDesc.NumRenderTargets       = 1;
     psoDesc.RTVFormats[0]          = rtvFormat;
-    psoDesc.SampleDesc             = { 1, 0 };
-    psoDesc.DepthStencilState.DepthEnable = FALSE;
+    psoDesc.SampleDesc                      = { 1, 0 };
+    psoDesc.DepthStencilState.DepthEnable   = TRUE;
+    psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+    psoDesc.DepthStencilState.DepthFunc     = D3D12_COMPARISON_FUNC_LESS;
+    psoDesc.DSVFormat                       = DXGI_FORMAT_D32_FLOAT;
 
     HRESULT hr = device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_PSO));
     return SUCCEEDED(hr);
