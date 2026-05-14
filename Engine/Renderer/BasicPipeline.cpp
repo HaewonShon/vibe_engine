@@ -2,6 +2,16 @@
 #include "Shader.h"
 #include "DX12Helpers.h"
 #include <stdexcept>
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
+static std::wstring GetExeDir()
+{
+    wchar_t buf[MAX_PATH];
+    GetModuleFileNameW(nullptr, buf, MAX_PATH);
+    std::wstring path(buf);
+    return path.substr(0, path.find_last_of(L"\\/") + 1);
+}
 
 namespace VibeEngine {
 
@@ -48,9 +58,10 @@ bool BasicPipeline::CreateRootSignature(ID3D12Device* device)
 bool BasicPipeline::CreatePSO(ID3D12Device* device, DXGI_FORMAT rtvFormat)
 {
     ComPtr<ID3DBlob> vs, ps;
+    std::wstring shaderPath = GetExeDir() + L"Shaders/Basic.hlsl";
     try {
-        vs = Shader::CompileFromFile(L"Shaders/Basic.hlsl", "VSMain", "vs_5_0");
-        ps = Shader::CompileFromFile(L"Shaders/Basic.hlsl", "PSMain", "ps_5_0");
+        vs = Shader::CompileFromFile(shaderPath, "VSMain", "vs_5_0");
+        ps = Shader::CompileFromFile(shaderPath, "PSMain", "ps_5_0");
     } catch (const std::exception& e) {
         OutputDebugStringA(e.what());
         return false;
