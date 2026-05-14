@@ -51,7 +51,8 @@ void Application::MainLoop()
         m_LastTime = now;
 
         Profiler::Get().BeginFrame();
-        InputManager::Get().Update();
+        if (m_Window->IsFocused())
+            InputManager::Get().Update();
 
         {
             PROFILE_SCOPE("Update");

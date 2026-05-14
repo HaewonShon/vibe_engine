@@ -97,6 +97,9 @@ LRESULT CALLBACK Window::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             self->m_EventCallback(msg, wp, lp);
 
         switch (msg) {
+        case WM_ACTIVATE:
+            self->m_Focused = (LOWORD(wp) != WA_INACTIVE);
+            return 0;
         case WM_CLOSE:
         case WM_DESTROY:
             self->m_ShouldClose = true;

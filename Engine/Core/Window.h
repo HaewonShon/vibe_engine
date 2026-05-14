@@ -27,6 +27,7 @@ public:
     int  GetWidth()     const { return m_Width; }
     int  GetHeight()    const { return m_Height; }
     bool ShouldClose()  const { return m_ShouldClose; }
+    bool IsFocused()    const { return m_Focused; }
 
 private:
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
@@ -36,6 +37,7 @@ private:
     int           m_Width       = 0;
     int           m_Height      = 0;
     bool          m_ShouldClose = false;
+    bool          m_Focused     = true;
     EventCallback m_EventCallback;
 
     static constexpr const char* CLASS_NAME = "VibeEngineWindow";
