@@ -93,6 +93,7 @@
     <ClInclude Include="Renderer\Texture.h" />
     <ClInclude Include="Renderer\LightManager.h" />
     <ClInclude Include="Renderer\Material.h" />
+    <ClInclude Include="Renderer\OBJLoader.h" />
     <ClInclude Include="Core\Log.h" />
     <ClInclude Include="Core\Profiler.h" />
     <ClInclude Include="Core\ResourceManager.h" />
@@ -114,6 +115,7 @@
     <ClCompile Include="Renderer\Texture.cpp" />
     <ClCompile Include="Renderer\LightManager.cpp" />
     <ClCompile Include="Renderer\Material.cpp" />
+    <ClCompile Include="Renderer\OBJLoader.cpp" />
     <ClCompile Include="Core\Log.cpp" />
     <ClCompile Include="Core\Profiler.cpp" />
     <ClCompile Include="Core\ResourceManager.cpp" />

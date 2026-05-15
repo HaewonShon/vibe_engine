@@ -5,6 +5,7 @@
 #include <functional>
 #include "../Renderer/Mesh.h"
 #include "../Renderer/Texture.h"
+#include "../Renderer/OBJLoader.h"
 
 namespace VibeEngine {
 
@@ -30,6 +31,10 @@ public:
     std::shared_ptr<Mesh> GetPlane();
 
     bool HasMesh(const std::string& name) const;
+
+    // Load an OBJ file and cache it by path. Returns nullptr on failure.
+    // Must be called between BeginFrame/EndFrame.
+    std::shared_ptr<Mesh> LoadModel(const std::wstring& path);
 
     // ---- Texture ------------------------------------------------------------
     // Returns cached texture, or loads from disk and caches.

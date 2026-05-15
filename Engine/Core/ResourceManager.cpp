@@ -60,6 +60,29 @@ bool ResourceManager::HasMesh(const std::string& name) const
     return m_Meshes.count(name) > 0;
 }
 
+std::shared_ptr<Mesh> ResourceManager::LoadModel(const std::wstring& path)
+{
+    // Use the wstring path as cache key (converted via narrow string key)
+    std::string key(path.begin(), path.end());
+
+    auto it = m_Meshes.find(key);
+    if (it != m_Meshes.end()) {
+        LOG_INFO("ResourceManager: model cache hit [%s]", key.c_str());
+        return it->second;
+    }
+
+    Mesh loaded = OBJLoader::Load(m_Ctx->GetDevice(), m_Ctx->GetCommandList(), path);
+    if (loaded.GetIndexCount() == 0) {
+        LOG_ERROR("ResourceManager: failed to load model [%s]", key.c_str());
+        return nullptr;
+    }
+
+    auto mesh = std::make_shared<Mesh>(std::move(loaded));
+    m_Meshes[key] = mesh;
+    LOG_INFO("ResourceManager: model loaded [%s]  verts cached", key.c_str());
+    return mesh;
+}
+
 // ---- Texture ----------------------------------------------------------------
 
 std::shared_ptr<Texture> ResourceManager::GetOrLoadTexture(const std::wstring& path)

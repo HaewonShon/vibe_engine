@@ -54,10 +54,10 @@ bool Mesh::Create(
     ID3D12Device* device,
     ID3D12GraphicsCommandList* cmdList,
     const std::vector<Vertex>&   vertices,
-    const std::vector<uint16_t>& indices)
+    const std::vector<uint32_t>& indices)
 {
     UINT64 vbSize = vertices.size()  * sizeof(Vertex);
-    UINT64 ibSize = indices.size()   * sizeof(uint16_t);
+    UINT64 ibSize = indices.size()   * sizeof(uint32_t);
 
     m_VertexBuffer = CreateDefaultBuffer(device, vbSize);
     m_IndexBuffer  = CreateDefaultBuffer(device, ibSize);
@@ -78,7 +78,7 @@ bool Mesh::Create(
 
     m_IBView.BufferLocation = m_IndexBuffer->GetGPUVirtualAddress();
     m_IBView.SizeInBytes    = static_cast<UINT>(ibSize);
-    m_IBView.Format         = DXGI_FORMAT_R16_UINT;
+    m_IBView.Format         = DXGI_FORMAT_R32_UINT;
 
     m_IndexCount = static_cast<UINT>(indices.size());
     return true;
@@ -97,7 +97,7 @@ Mesh Mesh::CreateTriangle(ID3D12Device* device, ID3D12GraphicsCommandList* cmdLi
         { {  0.5f, -0.5f, 0.0f }, { 0.2f, 1.0f, 0.2f, 1.0f } },
         { { -0.5f, -0.5f, 0.0f }, { 0.2f, 0.2f, 1.0f, 1.0f } },
     };
-    std::vector<uint16_t> indices = { 0, 1, 2 };
+    std::vector<uint32_t> indices = { 0, 1, 2 };
 
     Mesh mesh;
     mesh.Create(device, cmdList, verts, indices);
@@ -142,7 +142,7 @@ Mesh Mesh::CreateCube(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
     };
 
     // 6 faces x 2 triangles x 3 indices = 36
-    std::vector<uint16_t> indices = {
+    std::vector<uint32_t> indices = {
          0,  1,  2,   0,  2,  3,  // front
          4,  5,  6,   4,  6,  7,  // back
          8,  9, 10,   8, 10, 11,  // left
@@ -165,7 +165,7 @@ Mesh Mesh::CreatePlane(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
         { {  1.f, 0.f,  1.f }, { 0.8f, 0.8f, 0.8f, 1.f }, { 1.f, 0.f }, { 0.f, 1.f, 0.f } },
         { { -1.f, 0.f,  1.f }, { 0.8f, 0.8f, 0.8f, 1.f }, { 0.f, 0.f }, { 0.f, 1.f, 0.f } },
     };
-    std::vector<uint16_t> indices = { 0, 1, 2,  0, 2, 3 };
+    std::vector<uint32_t> indices = { 0, 1, 2,  0, 2, 3 };
 
     Mesh mesh;
     mesh.Create(device, cmdList, verts, indices);
