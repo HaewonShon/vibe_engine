@@ -444,7 +444,7 @@ void PhysicsWorld::SetAngularVelocity(uint32_t id, const XMFLOAT3& vel)
 
 // ---- Raycasting ------------------------------------------------------------
 
-PhysicsWorld::RaycastHit PhysicsWorld::CastRay(
+RaycastHit PhysicsWorld::CastRay(
     const XMFLOAT3& origin, const XMFLOAT3& direction, float maxDistance) const
 {
     RaycastHit out;
