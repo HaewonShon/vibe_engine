@@ -13,6 +13,7 @@ public:
     void Run();
 
     virtual void OnInit()               {}
+    virtual void OnPreUpdate(float /*dt*/) {}  // called before scene Update; use for physics step
     virtual void OnUpdate(float /*dt*/) {}
     virtual void OnRender()             {}
     virtual void OnShutdown()           {}

@@ -62,6 +62,11 @@ public:
     void Update(float dt);
     void Render();
 
+    // Destroy all GameObjects immediately and reset the started flag.
+    // Safe to call between frames (not during scene Update iteration).
+    // Rigidbody::OnDestroy is invoked for every component via ~GameObject().
+    void Clear();
+
     // ---- Search: name -------------------------------------------------------
 
     // First active GO whose name matches exactly.

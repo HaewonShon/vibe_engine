@@ -59,6 +59,16 @@ void Scene::Start()
     m_Started = true;
 }
 
+void Scene::Clear()
+{
+    // Drop pending-destroy queue first so those GOs don't live past Clear.
+    m_PendingDestroy.clear();
+    // Destroying the unique_ptrs calls ~GameObject() → comp->OnDestroy() for all components
+    // (e.g. Rigidbody::OnDestroy removes Jolt bodies before physics Shutdown).
+    m_GameObjects.clear();
+    m_Started = false;
+}
+
 void Scene::Update(float dt)
 {
     if (!m_Started) {

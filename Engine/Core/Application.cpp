@@ -70,6 +70,7 @@ void Application::MainLoop()
 
         {
             PROFILE_SCOPE("Update");
+            OnPreUpdate(dt);   // physics step — runs before Rigidbody::Update reads positions
             auto* scene = SceneManager::Get().GetActiveScene();
             if (scene) scene->Update(dt);
             OnUpdate(dt);

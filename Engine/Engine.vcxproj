@@ -98,6 +98,11 @@
     <ClInclude Include="Core\Log.h" />
     <ClInclude Include="Core\Profiler.h" />
     <ClInclude Include="Core\ResourceManager.h" />
+    <ClInclude Include="Core\Layer.h" />
+    <ClInclude Include="Core\EventBus.h" />
+    <ClInclude Include="Core\GameplayTag.h" />
+    <ClInclude Include="Physics\PhysicsWorld.h" />
+    <ClInclude Include="Physics\Rigidbody.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Core\Application.cpp" />
@@ -120,6 +125,9 @@
     <ClCompile Include="Core\Log.cpp" />
     <ClCompile Include="Core\Profiler.cpp" />
     <ClCompile Include="Core\ResourceManager.cpp" />
+    <ClCompile Include="Core\GameplayTag.cpp" />
+    <ClCompile Include="Physics\PhysicsWorld.cpp" />
+    <ClCompile Include="Physics\Rigidbody.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
