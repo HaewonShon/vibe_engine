@@ -102,14 +102,17 @@ void SandboxApp::SetupScene(Scene* scene)
                        / static_cast<float>(GetWindow()->GetHeight());
 
     // ---- Camera ---------------------------------------------------------------
-    // Positioned to the right-front so the falling cube is framed nicely.
+    // Position (5, 10, -10).  Target: scene centre ~(0, 3, 0).
+    // Direction (-5,-7,10) -> yaw = atan2(-5,10) ~ -27 deg,
+    //                          pitch: sin(pitch) = 7/sqrt(174) ~ 0.531 -> +32 deg.
+    // Camera code: forward.y = -sin(pitchRad), so POSITIVE pitch = look DOWN.
     auto* camGO = scene->CreateGameObject("Camera");
     camGO->AddComponent<Camera>();
-    camGO->GetTransform()->SetPosition({ 5.f, 6.f, -8.f });
+    camGO->GetTransform()->SetPosition({ 5.f, 10.f, -10.f });
     m_Camera = camGO->GetComponent<Camera>();
     m_Camera->SetAspect(aspect);
-    m_Camera->SetYaw  (-28.f);   // turn left toward cube at x=0
-    m_Camera->SetPitch(-22.f);   // tilt down to see floor
+    m_Camera->SetYaw  (-27.f);   // turn left toward x = 0
+    m_Camera->SetPitch(+32.f);   // look DOWN (positive = downward in this engine)
 
     // ---- Floor (static rigidbody) -------------------------------------------
     // Cube mesh scaled thin (0.2 units tall) so it reads as a flat plane.
