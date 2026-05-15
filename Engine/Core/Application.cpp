@@ -80,8 +80,8 @@ void Application::MainLoop()
         ++fpsFrames;
         if (fpsAccum >= 0.5f) {
             float fps      = static_cast<float>(fpsFrames) / fpsAccum;
-            float updateMs = Profiler::Get().GetMs("Update");
-            float renderMs = Profiler::Get().GetMs("Render");
+            float updateMs = Profiler::Get().GetSmoothedMs("Update");
+            float renderMs = Profiler::Get().GetSmoothedMs("Render");
             char buf[256];
             snprintf(buf, sizeof(buf),
                 "VibeEngine | %.1f FPS | Update: %.2f ms | Render: %.2f ms",
