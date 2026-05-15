@@ -12,6 +12,9 @@ Application::Application(const std::string& title, int width, int height)
 {
     s_Instance = this;
 
+    Log::Get().Init();           // open log file before anything else
+    LOG_INFO("VibeEngine starting — %s (%dx%d)", title.c_str(), width, height);
+
     WindowProps props{ title, width, height };
     m_Window = std::make_unique<Window>(props);
 
@@ -30,6 +33,8 @@ Application::Application(const std::string& title, int width, int height)
 
 Application::~Application()
 {
+    LOG_INFO("VibeEngine shutting down.");
+    Log::Get().Shutdown();
     s_Instance = nullptr;
 }
 
