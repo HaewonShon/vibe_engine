@@ -100,6 +100,12 @@ LRESULT CALLBACK Window::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         case WM_ACTIVATE:
             self->m_Focused = (LOWORD(wp) != WA_INACTIVE);
             return 0;
+        case WM_SIZE:
+            if (wp != SIZE_MINIMIZED) {
+                self->m_Width  = static_cast<int>(LOWORD(lp));
+                self->m_Height = static_cast<int>(HIWORD(lp));
+            }
+            break; // let DefWindowProc handle it too
         case WM_CLOSE:
         case WM_DESTROY:
             self->m_ShouldClose = true;

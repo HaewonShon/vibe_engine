@@ -5,6 +5,7 @@
 #include "Renderer/Mesh.h"
 #include "Renderer/Texture.h"
 #include "Renderer/Material.h"
+#include "Renderer/Camera.h"
 #include "Core/GameObject.h"
 #include <memory>
 
@@ -13,10 +14,11 @@ public:
     SandboxApp();
     ~SandboxApp() override;
 
-    void OnInit()           override;
-    void OnUpdate(float dt) override;
-    void OnRender()         override;
-    void OnShutdown()       override;
+    void OnInit()               override;
+    void OnUpdate(float dt)     override;
+    void OnRender()             override;
+    void OnShutdown()           override;
+    void OnResize(int w, int h) override;
 
 private:
     VibeEngine::DX12Context   m_DX12;
@@ -28,6 +30,7 @@ private:
     VibeEngine::Material m_CubeMaterial;
     VibeEngine::Material m_FloorMaterial;
 
-    VibeEngine::GameObject* m_Cube  = nullptr;
-    VibeEngine::GameObject* m_Floor = nullptr;
+    VibeEngine::Camera*     m_Camera = nullptr;
+    VibeEngine::GameObject* m_Cube   = nullptr;
+    VibeEngine::GameObject* m_Floor  = nullptr;
 };

@@ -70,15 +70,17 @@ void SandboxApp::OnInit()
     auto* scene = SceneManager::Get().CreateScene("Main");
     SceneManager::Get().LoadScene("Main");
 
-    // Camera: start at (0, 0, -3), looking toward +Z
+    // Camera: elevated position, slight downward pitch to see cube + floor
     auto* camGO = scene->CreateGameObject("Camera");
     camGO->AddComponent<Camera>();
-    camGO->GetTransform()->SetPosition({ 0.f, 0.f, -3.f });
-    camGO->GetComponent<Camera>()->SetAspect(1280.f / 720.f);
+    camGO->GetTransform()->SetPosition({ 0.f, 1.2f, -4.f });
+    m_Camera = camGO->GetComponent<Camera>();
+    m_Camera->SetAspect(1280.f / 720.f);
+    m_Camera->SetPitch(-15.f); // look slightly down
 
-    // Cube
+    // Cube: 45-degree corner view so multiple faces + lighting are visible from the start
     m_Cube = scene->CreateGameObject("Cube");
-    m_Cube->GetTransform()->SetRotation({ 25.f, 35.f, 0.f });
+    m_Cube->GetTransform()->SetRotation({ 30.f, 45.f, 0.f });
 
     auto* mr = m_Cube->AddComponent<MeshRenderer>();
     mr->SetMesh(m_Mesh);
@@ -121,6 +123,13 @@ void SandboxApp::OnRender()
     if (scene) scene->Render();
 
     m_DX12.EndFrame();
+}
+
+void SandboxApp::OnResize(int w, int h)
+{
+    m_DX12.Resize(static_cast<UINT>(w), static_cast<UINT>(h));
+    if (m_Camera)
+        m_Camera->SetAspect(static_cast<float>(w) / static_cast<float>(h));
 }
 
 void SandboxApp::OnShutdown()

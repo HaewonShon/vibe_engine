@@ -1,6 +1,7 @@
 #pragma once
 #include "../Core/Component.h"
 #include <DirectXMath.h>
+#include <algorithm>
 
 namespace VibeEngine {
 
@@ -16,6 +17,8 @@ public:
     void SetNearFar  (float n, float f)    { m_Near = n; m_Far = f; }
     void SetMoveSpeed(float s)             { m_MoveSpeed = s; }
     void SetLookSpeed(float s)             { m_LookSpeed = s; }
+    void SetYaw      (float deg)           { m_Yaw       = deg; }
+    void SetPitch    (float deg)           { m_Pitch     = std::clamp(deg, -89.f, 89.f); }
 
     DirectX::XMMATRIX GetViewProjectionMatrix() const;
 

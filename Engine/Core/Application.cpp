@@ -15,6 +15,15 @@ Application::Application(const std::string& title, int width, int height)
     WindowProps props{ title, width, height };
     m_Window = std::make_unique<Window>(props);
 
+    // Forward WM_SIZE to the virtual OnResize hook
+    m_Window->SetEventCallback([this](UINT msg, WPARAM wp, LPARAM lp) {
+        if (msg == WM_SIZE && wp != SIZE_MINIMIZED) {
+            int w = static_cast<int>(LOWORD(lp));
+            int h = static_cast<int>(HIWORD(lp));
+            if (w > 0 && h > 0) OnResize(w, h);
+        }
+    });
+
     QueryPerformanceFrequency(&m_Frequency);
     QueryPerformanceCounter(&m_LastTime);
 }

@@ -12,10 +12,11 @@ public:
 
     void Run();
 
-    virtual void OnInit()              {}
+    virtual void OnInit()               {}
     virtual void OnUpdate(float /*dt*/) {}
-    virtual void OnRender()            {}
-    virtual void OnShutdown()          {}
+    virtual void OnRender()             {}
+    virtual void OnShutdown()           {}
+    virtual void OnResize(int /*w*/, int /*h*/) {}
 
     Window* GetWindow() const { return m_Window.get(); }
     static Application* Get() { return s_Instance; }
