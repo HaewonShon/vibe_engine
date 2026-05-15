@@ -3,6 +3,7 @@
 #include "Mesh.h"
 #include "BasicPipeline.h"
 #include "Texture.h"
+#include "Material.h"
 #include <d3d12.h>
 #include <wrl/client.h>
 #include <DirectXMath.h>
@@ -17,10 +18,9 @@ public:
     MeshRenderer();
     ~MeshRenderer() override;
 
-    void SetMesh       (std::shared_ptr<Mesh> mesh)        { m_Mesh     = mesh; }
-    void SetPipeline   (BasicPipeline* pipeline)           { m_Pipeline = pipeline; }
-    void SetCommandList(ID3D12GraphicsCommandList* cl)     { m_CmdList  = cl; }
-    void SetTexture    (Texture* texture)                  { m_Texture  = texture; }
+    void SetMesh       (std::shared_ptr<Mesh> mesh)       { m_Mesh     = mesh; }
+    void SetCommandList(ID3D12GraphicsCommandList* cl)    { m_CmdList  = cl; }
+    void SetMaterial   (Material* mat)                    { m_Material = mat; }
 
     bool CreateConstantBuffer(ID3D12Device* device);
 
@@ -28,9 +28,8 @@ public:
 
 private:
     std::shared_ptr<Mesh>      m_Mesh;
-    BasicPipeline*             m_Pipeline = nullptr;
+    Material*                  m_Material = nullptr;
     ID3D12GraphicsCommandList* m_CmdList  = nullptr;
-    Texture*                   m_Texture  = nullptr;
 
     ComPtr<ID3D12Resource> m_ConstantBuffer;
     void*                  m_MappedCB = nullptr;

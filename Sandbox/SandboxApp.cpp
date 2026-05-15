@@ -31,14 +31,18 @@ void SandboxApp::OnInit()
         return;
     }
 
+    // Upload geometry + texture in one command list submission
     m_DX12.BeginFrame();
     m_Mesh = std::make_shared<Mesh>(
         Mesh::CreateCube(m_DX12.GetDevice(), m_DX12.GetCommandList()));
+    m_PlaneMesh = std::make_shared<Mesh>(
+        Mesh::CreatePlane(m_DX12.GetDevice(), m_DX12.GetCommandList()));
     m_Texture.LoadFromFile(m_DX12.GetDevice(), m_DX12.GetCommandList(), m_DX12,
         GetExeDir() + L"Textures/checkerboard.png");
     m_DX12.EndFrame();
     m_DX12.WaitForGPU();
     m_Mesh->ReleaseUploadBuffers();
+    m_PlaneMesh->ReleaseUploadBuffers();
     m_Texture.ReleaseUploadBuffer();
 
     LightManager::Get().Initialize(m_DX12.GetDevice());
@@ -48,10 +52,25 @@ void SandboxApp::OnInit()
         return;
     }
 
+    // Materials
+    m_CubeMaterial.SetPipeline(&m_Pipeline);
+    m_CubeMaterial.SetTexture(&m_Texture);
+    m_CubeMaterial.SetAlbedo({ 1.f, 1.f, 1.f, 1.f });
+    m_CubeMaterial.SetRoughness(0.3f);
+    m_CubeMaterial.SetMetallic(0.0f);
+    m_CubeMaterial.Create(m_DX12.GetDevice());
+
+    m_FloorMaterial.SetPipeline(&m_Pipeline);
+    m_FloorMaterial.SetTexture(&m_Texture);
+    m_FloorMaterial.SetAlbedo({ 0.6f, 0.6f, 0.6f, 1.f }); // darker/more matte
+    m_FloorMaterial.SetRoughness(0.9f);
+    m_FloorMaterial.SetMetallic(0.0f);
+    m_FloorMaterial.Create(m_DX12.GetDevice());
+
     auto* scene = SceneManager::Get().CreateScene("Main");
     SceneManager::Get().LoadScene("Main");
 
-    // Camera: start at (0, 0, -3), looking toward +Z (at the cube)
+    // Camera: start at (0, 0, -3), looking toward +Z
     auto* camGO = scene->CreateGameObject("Camera");
     camGO->AddComponent<Camera>();
     camGO->GetTransform()->SetPosition({ 0.f, 0.f, -3.f });
@@ -63,10 +82,20 @@ void SandboxApp::OnInit()
 
     auto* mr = m_Cube->AddComponent<MeshRenderer>();
     mr->SetMesh(m_Mesh);
-    mr->SetPipeline(&m_Pipeline);
     mr->SetCommandList(m_DX12.GetCommandList());
-    mr->SetTexture(&m_Texture);
+    mr->SetMaterial(&m_CubeMaterial);
     mr->CreateConstantBuffer(m_DX12.GetDevice());
+
+    // Floor plane — y=-0.5 sits flush below the cube, scaled 3x (6x6 world units)
+    m_Floor = scene->CreateGameObject("Floor");
+    m_Floor->GetTransform()->SetPosition({ 0.f, -0.5f, 0.f });
+    m_Floor->GetTransform()->SetScale({ 3.f, 1.f, 3.f });
+
+    auto* floorMR = m_Floor->AddComponent<MeshRenderer>();
+    floorMR->SetMesh(m_PlaneMesh);
+    floorMR->SetCommandList(m_DX12.GetCommandList());
+    floorMR->SetMaterial(&m_FloorMaterial);
+    floorMR->CreateConstantBuffer(m_DX12.GetDevice());
 }
 
 void SandboxApp::OnUpdate(float dt)
@@ -99,5 +128,6 @@ void SandboxApp::OnShutdown()
     m_DX12.WaitForGPU();
     m_Pipeline.Destroy();
     m_Mesh.reset();
+    m_PlaneMesh.reset();
     m_DX12.Shutdown();
 }

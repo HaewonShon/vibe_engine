@@ -26,6 +26,7 @@ public:
 
     static Mesh CreateTriangle(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     static Mesh CreateCube    (ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
+    static Mesh CreatePlane   (ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
 
     const D3D12_VERTEX_BUFFER_VIEW& GetVBView()    const { return m_VBView; }
     const D3D12_INDEX_BUFFER_VIEW&  GetIBView()    const { return m_IBView; }

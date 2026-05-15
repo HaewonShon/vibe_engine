@@ -275,7 +275,7 @@ void DX12Context::BeginFrame()
     auto dsv = m_DSVHeap->GetCPUDescriptorHandleForHeapStart();
     m_CommandList->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
 
-    static constexpr float CLEAR_COLOR[] = { 0.1f, 0.18f, 0.36f, 1.0f }; // cobalt blue
+    static constexpr float CLEAR_COLOR[] = { 0.05f, 0.05f, 0.05f, 1.0f }; // near black
     m_CommandList->ClearRenderTargetView(rtv, CLEAR_COLOR, 0, nullptr);
     m_CommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 }

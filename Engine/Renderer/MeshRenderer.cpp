@@ -36,9 +36,12 @@ bool MeshRenderer::CreateConstantBuffer(ID3D12Device* device)
 
 void MeshRenderer::Draw(const XMMATRIX& viewProj) const
 {
-    if (!m_Mesh || !m_Pipeline || !m_CmdList || !m_MappedCB) return;
+    if (!m_Mesh || !m_Material || !m_CmdList || !m_MappedCB) return;
 
-    // Build MVP
+    BasicPipeline* pipeline = m_Material->GetPipeline();
+    if (!pipeline) return;
+
+    // Build MVP from transform hierarchy
     XMMATRIX world = XMMatrixIdentity();
     if (GetGameObject()) {
         if (auto* t = GetGameObject()->GetTransform())
@@ -52,16 +55,25 @@ void MeshRenderer::Draw(const XMMATRIX& viewProj) const
     memcpy(m_MappedCB, &cb, sizeof(PerObjectCB));
 
     LightManager::Get().Upload();
+    m_Material->Upload();
 
-    m_CmdList->SetGraphicsRootSignature(m_Pipeline->GetRootSignature());
-    m_CmdList->SetPipelineState(m_Pipeline->GetPSO());
+    m_CmdList->SetGraphicsRootSignature(pipeline->GetRootSignature());
+    m_CmdList->SetPipelineState(pipeline->GetPSO());
     m_CmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     m_CmdList->IASetVertexBuffers(0, 1, &m_Mesh->GetVBView());
     m_CmdList->IASetIndexBuffer(&m_Mesh->GetIBView());
+
+    // [0] per-object CB (MVP + World)
     m_CmdList->SetGraphicsRootConstantBufferView(0, m_ConstantBuffer->GetGPUVirtualAddress());
+    // [1] light CB
     m_CmdList->SetGraphicsRootConstantBufferView(1, LightManager::Get().GetGPUAddress());
-    if (m_Texture && m_Texture->IsLoaded())
-        m_CmdList->SetGraphicsRootDescriptorTable(2, m_Texture->GetSRVHandle());
+    // [2] material CB (albedo, roughness, metallic, emissive)
+    m_CmdList->SetGraphicsRootConstantBufferView(2, m_Material->GetGPUAddress());
+    // [3] texture SRV
+    Texture* tex = m_Material->GetTexture();
+    if (tex && tex->IsLoaded())
+        m_CmdList->SetGraphicsRootDescriptorTable(3, tex->GetSRVHandle());
+
     m_CmdList->DrawIndexedInstanced(m_Mesh->GetIndexCount(), 1, 0, 0, 0);
 }
 

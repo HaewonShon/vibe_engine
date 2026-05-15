@@ -1,4 +1,4 @@
-// Basic.hlsl - Textured geometry with directional lighting
+// Basic.hlsl - Textured geometry with directional lighting + material
 
 cbuffer PerObjectCB : register(b0)
 {
@@ -14,6 +14,17 @@ cbuffer LightCB : register(b1)
     float  Pad0;
     float3 Ambient;
     float  Pad1;
+};
+
+cbuffer MaterialCB : register(b2)
+{
+    float4 MatAlbedo;
+    float  MatRoughness;
+    float  MatMetallic;
+    float  MatEmissiveIntensity;
+    float  MatPad0;
+    float3 MatEmissive;
+    float  MatPad1;
 };
 
 Texture2D    gTexture : register(t0);
@@ -51,6 +62,7 @@ float4 PSMain(PSInput input) : SV_TARGET
     float  diffuse = max(dot(normal, normalize(LightDir)), 0.0f);
     float3 light   = Ambient + LightColor * Intensity * diffuse;
 
-    float4 texCol  = gTexture.Sample(gSampler, input.TexCoord) * input.Color;
-    return float4(texCol.rgb * light, texCol.a);
+    float4 texCol   = gTexture.Sample(gSampler, input.TexCoord) * input.Color * MatAlbedo;
+    float3 emissive = MatEmissive * MatEmissiveIntensity;
+    return float4(texCol.rgb * light + emissive, texCol.a);
 }

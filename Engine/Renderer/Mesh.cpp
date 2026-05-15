@@ -156,4 +156,20 @@ Mesh Mesh::CreateCube(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
     return mesh;
 }
 
+Mesh Mesh::CreatePlane(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
+{
+    // 2x2 quad in XZ at y=0, normal (0,1,0) pointing up
+    std::vector<Vertex> verts = {
+        { { -1.f, 0.f, -1.f }, { 0.8f, 0.8f, 0.8f, 1.f }, { 0.f, 1.f }, { 0.f, 1.f, 0.f } },
+        { {  1.f, 0.f, -1.f }, { 0.8f, 0.8f, 0.8f, 1.f }, { 1.f, 1.f }, { 0.f, 1.f, 0.f } },
+        { {  1.f, 0.f,  1.f }, { 0.8f, 0.8f, 0.8f, 1.f }, { 1.f, 0.f }, { 0.f, 1.f, 0.f } },
+        { { -1.f, 0.f,  1.f }, { 0.8f, 0.8f, 0.8f, 1.f }, { 0.f, 0.f }, { 0.f, 1.f, 0.f } },
+    };
+    std::vector<uint16_t> indices = { 0, 1, 2,  0, 2, 3 };
+
+    Mesh mesh;
+    mesh.Create(device, cmdList, verts, indices);
+    return mesh;
+}
+
 } // namespace VibeEngine
