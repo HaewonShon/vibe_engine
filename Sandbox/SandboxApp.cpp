@@ -31,19 +31,18 @@ void SandboxApp::OnInit()
         return;
     }
 
-    // Upload geometry + texture in one command list submission
+    // Initialize resource layer
+    ResourceManager::Get().Initialize(&m_DX12);
+
+    // Upload all geometry + textures in one command list submission
     m_DX12.BeginFrame();
-    m_Mesh = std::make_shared<Mesh>(
-        Mesh::CreateCube(m_DX12.GetDevice(), m_DX12.GetCommandList()));
-    m_PlaneMesh = std::make_shared<Mesh>(
-        Mesh::CreatePlane(m_DX12.GetDevice(), m_DX12.GetCommandList()));
-    m_Texture.LoadFromFile(m_DX12.GetDevice(), m_DX12.GetCommandList(), m_DX12,
-        GetExeDir() + L"Textures/checkerboard.png");
+    auto cubeMesh  = ResourceManager::Get().GetCube();
+    auto planeMesh = ResourceManager::Get().GetPlane();
+    auto texture   = ResourceManager::Get().GetOrLoadTexture(
+                         GetExeDir() + L"Textures/checkerboard.png");
     m_DX12.EndFrame();
     m_DX12.WaitForGPU();
-    m_Mesh->ReleaseUploadBuffers();
-    m_PlaneMesh->ReleaseUploadBuffers();
-    m_Texture.ReleaseUploadBuffer();
+    ResourceManager::Get().ReleaseUploadBuffers();
 
     LightManager::Get().Initialize(m_DX12.GetDevice());
 
@@ -52,17 +51,19 @@ void SandboxApp::OnInit()
         return;
     }
 
-    // Materials
+    // Materials — texture* is valid as long as ResourceManager is alive
+    Texture* tex = texture ? texture.get() : nullptr;
+
     m_CubeMaterial.SetPipeline(&m_Pipeline);
-    m_CubeMaterial.SetTexture(&m_Texture);
+    m_CubeMaterial.SetTexture(tex);
     m_CubeMaterial.SetAlbedo({ 1.f, 1.f, 1.f, 1.f });
     m_CubeMaterial.SetRoughness(0.3f);
     m_CubeMaterial.SetMetallic(0.0f);
     m_CubeMaterial.Create(m_DX12.GetDevice());
 
     m_FloorMaterial.SetPipeline(&m_Pipeline);
-    m_FloorMaterial.SetTexture(&m_Texture);
-    m_FloorMaterial.SetAlbedo({ 0.6f, 0.6f, 0.6f, 1.f }); // darker/more matte
+    m_FloorMaterial.SetTexture(tex);
+    m_FloorMaterial.SetAlbedo({ 0.6f, 0.6f, 0.6f, 1.f });
     m_FloorMaterial.SetRoughness(0.9f);
     m_FloorMaterial.SetMetallic(0.0f);
     m_FloorMaterial.Create(m_DX12.GetDevice());
@@ -76,25 +77,25 @@ void SandboxApp::OnInit()
     camGO->GetTransform()->SetPosition({ 0.f, 1.2f, -4.f });
     m_Camera = camGO->GetComponent<Camera>();
     m_Camera->SetAspect(1280.f / 720.f);
-    m_Camera->SetPitch(-15.f); // look slightly down
+    m_Camera->SetPitch(-15.f);
 
-    // Cube: 45-degree corner view so multiple faces + lighting are visible from the start
+    // Cube: 45-degree corner view
     m_Cube = scene->CreateGameObject("Cube");
     m_Cube->GetTransform()->SetRotation({ 30.f, 45.f, 0.f });
 
     auto* mr = m_Cube->AddComponent<MeshRenderer>();
-    mr->SetMesh(m_Mesh);
+    mr->SetMesh(cubeMesh);
     mr->SetCommandList(m_DX12.GetCommandList());
     mr->SetMaterial(&m_CubeMaterial);
     mr->CreateConstantBuffer(m_DX12.GetDevice());
 
-    // Floor plane — y=-0.5 sits flush below the cube, scaled 3x (6x6 world units)
+    // Floor plane
     m_Floor = scene->CreateGameObject("Floor");
     m_Floor->GetTransform()->SetPosition({ 0.f, -0.5f, 0.f });
     m_Floor->GetTransform()->SetScale({ 3.f, 1.f, 3.f });
 
     auto* floorMR = m_Floor->AddComponent<MeshRenderer>();
-    floorMR->SetMesh(m_PlaneMesh);
+    floorMR->SetMesh(planeMesh);
     floorMR->SetCommandList(m_DX12.GetCommandList());
     floorMR->SetMaterial(&m_FloorMaterial);
     floorMR->CreateConstantBuffer(m_DX12.GetDevice());
@@ -106,7 +107,6 @@ void SandboxApp::OnUpdate(float dt)
     auto* t   = m_Cube->GetTransform();
     auto& inp = InputManager::Get();
 
-    // Arrow keys: rotate the cube
     const float speed = 90.0f;
     if (inp.IsKeyDown(KeyCode::Left))  t->Rotate(-speed * dt, 0.f, 0.f);
     if (inp.IsKeyDown(KeyCode::Right)) t->Rotate( speed * dt, 0.f, 0.f);
@@ -136,7 +136,6 @@ void SandboxApp::OnShutdown()
 {
     m_DX12.WaitForGPU();
     m_Pipeline.Destroy();
-    m_Mesh.reset();
-    m_PlaneMesh.reset();
+    ResourceManager::Get().Shutdown();
     m_DX12.Shutdown();
 }

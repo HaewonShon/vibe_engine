@@ -95,6 +95,7 @@
     <ClInclude Include="Renderer\Material.h" />
     <ClInclude Include="Core\Log.h" />
     <ClInclude Include="Core\Profiler.h" />
+    <ClInclude Include="Core\ResourceManager.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Core\Application.cpp" />
@@ -115,6 +116,7 @@
     <ClCompile Include="Renderer\Material.cpp" />
     <ClCompile Include="Core\Log.cpp" />
     <ClCompile Include="Core\Profiler.cpp" />
+    <ClCompile Include="Core\ResourceManager.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
