@@ -154,7 +154,32 @@ ResourceManager::Get().ReleaseUploadBuffers();  // call after WaitForGPU
 | GPU | DirectX 12 compatible |
 | IDE | Visual Studio 2022 |
 | SDK | Windows SDK 10.0+ |
-| Dependencies | **None** — Win32 + DX12 + D3DCompiler only |
+| Package manager | **vcpkg** (standalone — see setup below) |
+
+### Third-party libraries
+
+| Library | Version | Purpose | License |
+|---|---|---|---|
+| [JoltPhysics](https://github.com/jrouwe/JoltPhysics) | 5.5.0 | 3D rigid body physics | MIT |
+
+### First-time setup
+
+```bat
+:: 1. Clone and bootstrap vcpkg
+git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+
+:: 2. Integrate with Visual Studio (user-wide, once)
+C:\vcpkg\vcpkg.exe integrate install
+
+:: 3. Install dependencies declared in vcpkg.json
+cd path\to\vibe_engine
+C:\vcpkg\vcpkg.exe install --triplet x64-windows
+
+:: 4. Open vibe_engine.sln in Visual Studio and build
+```
+
+> The include and library paths (`vcpkg_installed\x64-windows\`) are already wired into the `.vcxproj` files — no manual project configuration needed.
 
 ---
 
@@ -224,8 +249,8 @@ vibe_engine/
 - [x] Scene query API (name / tag / layer / component / predicate)
 - [x] Transform quaternion (gimbal-lock-free, LookAt, GetForward)
 
-### 🔲 Tier 3 — Gameplay Layer
-- [ ] Physics / AABB collision + Rigidbody
+### 🚧 Tier 3 — Gameplay Layer
+- [ ] Physics / Rigidbody — **JoltPhysics 5.5.0 integrated via vcpkg**
 - [ ] Audio (XAudio2, AudioSource / AudioListener)
 - [ ] UI system (2D overlay, text, Button / Label)
 - [ ] Animation (Transform keyframe tween)

@@ -26,6 +26,9 @@ ipch/
 *.dll
 *.exe
 
+# vcpkg — binaries are reproducible; only manifest files are tracked
+vcpkg_installed/
+
 # OS
 Thumbs.db
 Desktop.ini
