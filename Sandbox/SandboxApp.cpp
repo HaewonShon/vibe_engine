@@ -7,49 +7,10 @@
 #include "Renderer/LightManager.h"
 #include "Physics/PhysicsWorld.h"
 #include "Physics/Rigidbody.h"
-#include "Audio/AudioManager.h"
-#include "Audio/AudioSource.h"
 #include "Input/InputManager.h"
 #include <string>
-#include <algorithm>
 
 using namespace VibeEngine;
-
-// ---------------------------------------------------------------------------
-// ImpactSoundPlayer — plays impact/bounce sounds on collision events.
-// Pitch is slightly randomised each hit for variation.
-// ---------------------------------------------------------------------------
-class ImpactSoundPlayer : public VibeEngine::Component {
-public:
-    std::shared_ptr<VibeEngine::AudioClip> impactClip;
-    std::shared_ptr<VibeEngine::AudioClip> bounceClip;
-
-    // Consecutive-bounce counter: first contact = full impact,
-    // subsequent lighter contacts = bounce with higher pitch.
-    int bounceCount = 0;
-
-    void OnCollisionEnter(VibeEngine::Rigidbody* /*other*/) override
-    {
-        auto& am = VibeEngine::AudioManager::Get();
-        if (bounceCount == 0 && impactClip) {
-            // First hit — deep thud
-            am.PlayOneShot(impactClip, 0.90f, 1.0f);
-        }
-        else if (bounceClip) {
-            // Subsequent bounces — higher pitch, lower volume each time
-            float pitch  = 1.0f + bounceCount * 0.12f;
-            float volume = (std::max)(0.05f, 0.75f - bounceCount * 0.15f);
-            am.PlayOneShot(bounceClip, volume, pitch);
-        }
-        ++bounceCount;
-    }
-
-    void OnCollisionExit(VibeEngine::Rigidbody* /*other*/) override
-    {
-        // Reset after a brief separation so the next drop sounds fresh.
-        // (We simply don't reset — accumulation per run is intentional.)
-    }
-};
 
 // ---------------------------------------------------------------------------
 static std::wstring GetExeDir()
@@ -87,16 +48,6 @@ void SandboxApp::OnInit()
     m_DX12.EndFrame();
     m_DX12.WaitForGPU();
     ResourceManager::Get().ReleaseUploadBuffers();
-
-    // ---- Audio ---------------------------------------------------------------
-    // AudioManager is already initialized by Application::Run() before OnInit.
-    // Load clips once here; they survive scene restarts.
-    {
-        std::wstring soundDir = GetExeDir() + L"Sounds/";
-        m_ImpactClip = AudioManager::Get().LoadClip(soundDir + L"impact.wav");
-        m_BounceClip = AudioManager::Get().LoadClip(soundDir + L"bounce.wav");
-        m_BgmClip    = AudioManager::Get().LoadClip(soundDir + L"bgm.wav");
-    }
 
     LightManager::Get().Initialize(m_DX12.GetDevice());
 
@@ -201,23 +152,6 @@ void SandboxApp::SetupScene(Scene* scene)
     cubeRB->SetMass       (1.f);
     cubeRB->SetRestitution(0.5f);
     cubeRB->SetFriction   (0.5f);
-
-    // ---- Collision sound ----------------------------------------------------
-    // ImpactSoundPlayer sits on the cube and reacts to OnCollisionEnter.
-    auto* isp = cube->AddComponent<ImpactSoundPlayer>();
-    isp->impactClip = m_ImpactClip;
-    isp->bounceClip = m_BounceClip;
-
-    // ---- BGM (looping ambient pad) ------------------------------------------
-    // Attach to a dedicated "AudioBed" GameObject so it persists independently.
-    auto* audioBed = scene->CreateGameObject("AudioBed");
-    auto* bgmAS    = audioBed->AddComponent<AudioSource>();
-    if (m_BgmClip) {
-        bgmAS->SetClip       (m_BgmClip);
-        bgmAS->SetLoop       (true);
-        bgmAS->SetVolume     (0.35f);
-        bgmAS->SetPlayOnStart(true);
-    }
 }
 
 // ---------------------------------------------------------------------------

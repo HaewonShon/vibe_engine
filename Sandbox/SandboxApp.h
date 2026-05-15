@@ -8,7 +8,6 @@
 #include "Renderer/Camera.h"
 #include "Renderer/Mesh.h"
 #include "Core/GameObject.h"
-#include "Audio/AudioClip.h"
 #include <memory>
 
 class SandboxApp : public VibeEngine::Application {
@@ -40,11 +39,6 @@ private:
 
     // Cached mesh — lifetime tied to ResourceManager
     std::shared_ptr<VibeEngine::Mesh> m_CubeMesh;
-
-    // ---- Audio clips (loaded once, shared across restarts) ------------------
-    std::shared_ptr<VibeEngine::AudioClip> m_ImpactClip;
-    std::shared_ptr<VibeEngine::AudioClip> m_BounceClip;
-    std::shared_ptr<VibeEngine::AudioClip> m_BgmClip;
 
     // ---- Live scene state ---------------------------------------------------
     VibeEngine::Camera* m_Camera = nullptr;   // raw ptr; nulled before Clear
