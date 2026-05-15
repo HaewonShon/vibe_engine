@@ -22,22 +22,31 @@ GameObject::~GameObject()
 void GameObject::Awake()
 {
     if (!m_Active) return;
+
     for (auto& [type, comp] : m_Components)
-        comp->Awake();
+        comp->Awake();   // always, regardless of enabled state
+
+    // Fire OnEnable for all initially-enabled components after Awake completes
+    for (auto& [type, comp] : m_Components)
+        if (comp->IsEnabled()) comp->OnEnable();
+
+    m_AwakeCalled = true;
 }
 
 void GameObject::Start()
 {
     if (!m_Active) return;
+
     for (auto& [type, comp] : m_Components)
-        comp->Start();
+        if (comp->IsEnabled()) comp->Start();
 }
 
 void GameObject::Update(float dt)
 {
     if (!m_Active) return;
+
     for (auto& [type, comp] : m_Components)
-        comp->Update(dt);
+        if (comp->IsEnabled()) comp->Update(dt);
 }
 
 } // namespace VibeEngine

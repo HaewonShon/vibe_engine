@@ -62,4 +62,40 @@ void Scene::Render()
     }
 }
 
+// ---- Search -----------------------------------------------------------------
+
+GameObject* Scene::FindByName(const std::string& name) const
+{
+    for (auto& go : m_GameObjects)
+        if (go->IsActive() && go->GetName() == name)
+            return go.get();
+    return nullptr;
+}
+
+GameObject* Scene::FindByTag(const GameplayTag& tag) const
+{
+    for (auto& go : m_GameObjects)
+        if (go->IsActive() && go->HasTag(tag))
+            return go.get();
+    return nullptr;
+}
+
+std::vector<GameObject*> Scene::FindAllByTag(const GameplayTag& tag) const
+{
+    std::vector<GameObject*> result;
+    for (auto& go : m_GameObjects)
+        if (go->IsActive() && go->HasTag(tag))
+            result.push_back(go.get());
+    return result;
+}
+
+std::vector<GameObject*> Scene::FindAllByTagExact(const GameplayTag& tag) const
+{
+    std::vector<GameObject*> result;
+    for (auto& go : m_GameObjects)
+        if (go->IsActive() && go->HasTagExact(tag))
+            result.push_back(go.get());
+    return result;
+}
+
 } // namespace VibeEngine
