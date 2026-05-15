@@ -3,6 +3,7 @@
 namespace VibeEngine {
 
 class GameObject;
+class Rigidbody;   // forward-declare so collision hooks need no extra includes
 
 // ============================================================================
 // Component  (base class)
@@ -32,6 +33,14 @@ public:
     virtual void Update(float /*dt*/) {}   // every frame — only if enabled
     virtual void OnDisable()          {}   // called when disabled
     virtual void OnDestroy()          {}   // called on GameObject destruction
+
+    // ---- Physics / collision callbacks (optional override) ------------------
+    // Fired by PhysicsWorld after each physics step, dispatched via Rigidbody.
+    // 'other' may be nullptr if the colliding body has no Rigidbody component.
+    virtual void OnCollisionEnter(Rigidbody* /*other*/) {}
+    virtual void OnCollisionExit (Rigidbody* /*other*/) {}
+    virtual void OnTriggerEnter  (Rigidbody* /*other*/) {}
+    virtual void OnTriggerExit   (Rigidbody* /*other*/) {}
 
     // ---- Enable / disable --------------------------------------------------
     void SetEnabled(bool enabled)

@@ -42,6 +42,11 @@ public:
 
     Transform* GetTransform() const { return m_Transform; }
 
+    // Read-only access to the raw component map.
+    // Used by the physics system to dispatch collision callbacks to all components.
+    using ComponentMap = std::unordered_map<std::type_index, std::unique_ptr<Component>>;
+    const ComponentMap& GetAllComponents() const { return m_Components; }
+
     // ---- Layer API ----------------------------------------------------------
     // Layer index (0-31). Use Layer:: constants.
     //   go->SetLayer(Layer::Enemy);
