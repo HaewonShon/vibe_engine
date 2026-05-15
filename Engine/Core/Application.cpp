@@ -3,6 +3,7 @@
 #include "../Core/SceneManager.h"
 #include "../Core/Profiler.h"
 #include "../Core/Log.h"
+#include "../Audio/AudioManager.h"
 
 namespace VibeEngine {
 
@@ -40,9 +41,11 @@ Application::~Application()
 
 void Application::Run()
 {
+    AudioManager::Get().Initialize();   // no-op if already done in OnInit
     OnInit();
     MainLoop();
     OnShutdown();
+    AudioManager::Get().Shutdown();
 }
 
 void Application::MainLoop()
@@ -67,6 +70,7 @@ void Application::MainLoop()
         Profiler::Get().BeginFrame();
         if (m_Window->IsFocused())
             InputManager::Get().Update();
+        AudioManager::Get().Update();   // recycle finished one-shot voices
 
         {
             PROFILE_SCOPE("Update");

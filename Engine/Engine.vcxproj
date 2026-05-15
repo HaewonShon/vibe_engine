@@ -103,6 +103,9 @@
     <ClInclude Include="Core\GameplayTag.h" />
     <ClInclude Include="Physics\PhysicsWorld.h" />
     <ClInclude Include="Physics\Rigidbody.h" />
+    <ClInclude Include="Audio\AudioClip.h" />
+    <ClInclude Include="Audio\AudioManager.h" />
+    <ClInclude Include="Audio\AudioSource.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Core\Application.cpp" />
@@ -128,6 +131,9 @@
     <ClCompile Include="Core\GameplayTag.cpp" />
     <ClCompile Include="Physics\PhysicsWorld.cpp" />
     <ClCompile Include="Physics\Rigidbody.cpp" />
+    <ClCompile Include="Audio\AudioClip.cpp" />
+    <ClCompile Include="Audio\AudioManager.cpp" />
+    <ClCompile Include="Audio\AudioSource.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
