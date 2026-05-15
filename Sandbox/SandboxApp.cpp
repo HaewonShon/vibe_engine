@@ -11,6 +11,8 @@
 #include "UI/UIRenderer.h"
 #include "UI/UIPanel.h"
 #include "UI/UIButton.h"
+#include "Animation/AnimationClip.h"
+#include "Animation/Animator.h"
 #include <string>
 #include <cstdio>
 
@@ -220,6 +222,50 @@ void SandboxApp::SetupScene(Scene* scene)
     cubeRB->SetMass       (1.f);
     cubeRB->SetRestitution(0.5f);
     cubeRB->SetFriction   (0.5f);
+
+    // ---- Animated orb (no physics, pure keyframe animation) ----------------
+    //
+    // A small grey cube hovers to the left of the scene, bobbing up/down
+    // with SineInOut easing and slowly spinning.  Demonstrates the Animator
+    // Component + AnimationClip system running alongside physics.
+    //
+    // Clip layout (4-second loop):
+    //   position : y bobs 3.0 ↑ 4.2 ↓ 3.0 (2-s period, SineInOut)
+    //   rotation : Y-axis full spin every 4 s (linear)
+    //   scale    : slight pulse 0.35 ↔ 0.50 in sync with the bob
+    auto* orb = scene->CreateGameObject("Orb");
+    orb->GetTransform()->SetPosition({ -3.5f, 3.0f, 0.f });
+    orb->GetTransform()->SetScale   ({ 0.35f, 0.35f, 0.35f });
+
+    auto* orbMR = orb->AddComponent<MeshRenderer>();
+    orbMR->SetMesh       (m_CubeMesh);
+    orbMR->SetCommandList(m_DX12.GetCommandList());
+    orbMR->SetMaterial   (&m_FloorMaterial);
+    orbMR->CreateConstantBuffer(m_DX12.GetDevice());
+
+    auto clip = std::make_shared<AnimationClip>("orb_float");
+    clip->SetDuration(4.f);
+
+    // Position: bob up and down (2-second period → two full cycles in 4 s)
+    clip->AddPositionKey(0.f, { -3.5f, 3.0f, 0.f })
+        .AddPositionKey(1.f, { -3.5f, 4.2f, 0.f }, EasingMode::SineInOut)
+        .AddPositionKey(2.f, { -3.5f, 3.0f, 0.f }, EasingMode::SineInOut)
+        .AddPositionKey(3.f, { -3.5f, 4.2f, 0.f }, EasingMode::SineInOut)
+        .AddPositionKey(4.f, { -3.5f, 3.0f, 0.f }, EasingMode::SineInOut);
+
+    // Rotation: one full Y-spin per loop (linear = constant angular speed)
+    clip->AddRotationKey(0.f, {  0.f,   0.f, 0.f })
+        .AddRotationKey(4.f, {  0.f, 360.f, 0.f });
+
+    // Scale: pulse in sync with the bob (0.35 at low, 0.50 at high)
+    clip->AddScaleKey(0.f, { 0.35f, 0.35f, 0.35f })
+        .AddScaleKey(1.f, { 0.50f, 0.50f, 0.50f }, EasingMode::SineInOut)
+        .AddScaleKey(2.f, { 0.35f, 0.35f, 0.35f }, EasingMode::SineInOut)
+        .AddScaleKey(3.f, { 0.50f, 0.50f, 0.50f }, EasingMode::SineInOut)
+        .AddScaleKey(4.f, { 0.35f, 0.35f, 0.35f }, EasingMode::SineInOut);
+
+    auto* anim = orb->AddComponent<Animator>();
+    anim->Play(clip, /*loop=*/true);
 }
 
 // ---------------------------------------------------------------------------

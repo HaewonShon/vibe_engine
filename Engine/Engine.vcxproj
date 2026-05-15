@@ -106,6 +106,9 @@
     <ClInclude Include="Audio\AudioClip.h" />
     <ClInclude Include="Audio\AudioManager.h" />
     <ClInclude Include="Audio\AudioSource.h" />
+    <ClInclude Include="Animation\Easing.h" />
+    <ClInclude Include="Animation\AnimationClip.h" />
+    <ClInclude Include="Animation\Animator.h" />
     <ClInclude Include="UI\UIElement.h" />
     <ClInclude Include="UI\UIPanel.h" />
     <ClInclude Include="UI\UILabel.h" />
@@ -140,6 +143,8 @@
     <ClCompile Include="Audio\AudioClip.cpp" />
     <ClCompile Include="Audio\AudioManager.cpp" />
     <ClCompile Include="Audio\AudioSource.cpp" />
+    <ClCompile Include="Animation\AnimationClip.cpp" />
+    <ClCompile Include="Animation\Animator.cpp" />
     <ClCompile Include="UI\UIRenderer.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
