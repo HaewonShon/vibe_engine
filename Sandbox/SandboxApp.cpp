@@ -23,7 +23,7 @@ static std::wstring GetExeDir()
 
 // ===========================================================================
 SandboxApp::SandboxApp()
-    : Application("VibeEngine Sandbox", 1280, 720)
+    : Application("VibeEngine — Physics Demo", 1280, 720)
 {}
 
 SandboxApp::~SandboxApp() = default;
@@ -33,7 +33,6 @@ void SandboxApp::OnInit()
 {
     HWND hwnd = GetWindow()->GetHandle();
 
-    // DX12
     if (!m_DX12.Initialize(hwnd, 1280, 720)) {
         MessageBoxA(hwnd, "DX12 init failed", "Error", MB_OK | MB_ICONERROR);
         return;
@@ -41,11 +40,11 @@ void SandboxApp::OnInit()
 
     ResourceManager::Get().Initialize(&m_DX12);
 
-    // Upload geometry + textures
+    // Upload geometry and textures once
     m_DX12.BeginFrame();
-    m_CubeMesh              = ResourceManager::Get().GetCube();
-    auto texture            = ResourceManager::Get().GetOrLoadTexture(
-                                  GetExeDir() + L"Textures/checkerboard.png");
+    m_CubeMesh = ResourceManager::Get().GetCube();
+    auto texture = ResourceManager::Get().GetOrLoadTexture(
+                       GetExeDir() + L"Textures/checkerboard.png");
     m_DX12.EndFrame();
     m_DX12.WaitForGPU();
     ResourceManager::Get().ReleaseUploadBuffers();
@@ -59,52 +58,66 @@ void SandboxApp::OnInit()
 
     Texture* tex = texture ? texture.get() : nullptr;
 
-    // Dynamic-box material — warm orange tint
+    // Cube material — vivid red-orange so it pops against the grey floor
     m_BoxMaterial.SetPipeline(&m_Pipeline);
     m_BoxMaterial.SetTexture(tex);
-    m_BoxMaterial.SetAlbedo({ 0.9f, 0.45f, 0.1f, 1.f });
-    m_BoxMaterial.SetRoughness(0.4f);
+    m_BoxMaterial.SetAlbedo({ 0.95f, 0.30f, 0.10f, 1.f });
+    m_BoxMaterial.SetRoughness(0.35f);
     m_BoxMaterial.SetMetallic(0.0f);
     m_BoxMaterial.Create(m_DX12.GetDevice());
 
-    // Floor material — neutral grey
+    // Floor material — light grey
     m_FloorMaterial.SetPipeline(&m_Pipeline);
     m_FloorMaterial.SetTexture(tex);
-    m_FloorMaterial.SetAlbedo({ 0.55f, 0.55f, 0.55f, 1.f });
-    m_FloorMaterial.SetRoughness(0.9f);
+    m_FloorMaterial.SetAlbedo({ 0.70f, 0.70f, 0.70f, 1.f });
+    m_FloorMaterial.SetRoughness(0.85f);
     m_FloorMaterial.SetMetallic(0.0f);
     m_FloorMaterial.Create(m_DX12.GetDevice());
 
-    // Scene
-    auto* scene = SceneManager::Get().CreateScene("Physics");
-    SceneManager::Get().LoadScene("Physics");
+    auto* scene = SceneManager::Get().CreateScene("PhysicsDemo");
+    SceneManager::Get().LoadScene("PhysicsDemo");
 
-    // Physics system
     PhysicsWorld::Get().Initialize();
 
     SetupScene(scene);
 }
 
 // ---------------------------------------------------------------------------
+// SetupScene
+//
+// Layout (Y-up):
+//
+//   y=6  ●  cube (1×1×1) — dynamic, starts here, falls under gravity
+//        |
+//        ↓  (gravity = -9.81 m/s²)
+//        |
+//   y=0  ▬▬▬▬▬▬▬▬▬▬  floor slab (10×0.2×10) — static
+//
+// Camera is offset to the right and above so we see the 3-D perspective of the fall.
+// Press R at any time to reset the simulation.
+// ---------------------------------------------------------------------------
 void SandboxApp::SetupScene(Scene* scene)
 {
     const float aspect = static_cast<float>(GetWindow()->GetWidth())
                        / static_cast<float>(GetWindow()->GetHeight());
 
-    // ---- Camera: elevated, looking down at the arena -------------------------
+    // ---- Camera ---------------------------------------------------------------
+    // Positioned to the right-front so the falling cube is framed nicely.
     auto* camGO = scene->CreateGameObject("Camera");
     camGO->AddComponent<Camera>();
-    camGO->GetTransform()->SetPosition({ 0.f, 6.f, -14.f });
+    camGO->GetTransform()->SetPosition({ 5.f, 6.f, -8.f });
     m_Camera = camGO->GetComponent<Camera>();
     m_Camera->SetAspect(aspect);
-    m_Camera->SetPitch(-20.f);
+    m_Camera->SetYaw  (-28.f);   // turn left toward cube at x=0
+    m_Camera->SetPitch(-22.f);   // tilt down to see floor
 
     // ---- Floor (static rigidbody) -------------------------------------------
-    // Cube mesh verts are ±0.5, so scale (16,1,16) → top surface at y = 0.
-    // Transform centred at (0, -0.5, 0); physics halfExtents match exactly.
+    // Cube mesh scaled thin (0.2 units tall) so it reads as a flat plane.
+    // Transform centred at y=-0.1 → top surface exactly at y=0.
+    // Physics box halfExtents (5, 0.1, 5) matches the visual exactly.
     auto* floor = scene->CreateGameObject("Floor");
-    floor->GetTransform()->SetPosition({ 0.f, -0.5f, 0.f });
-    floor->GetTransform()->SetScale({ 16.f, 1.f, 16.f });
+    floor->GetTransform()->SetPosition({ 0.f, -0.1f, 0.f });
+    floor->GetTransform()->SetScale   ({ 10.f, 0.2f, 10.f });
 
     auto* floorMR = floor->AddComponent<MeshRenderer>();
     floorMR->SetMesh(m_CubeMesh);
@@ -113,39 +126,29 @@ void SandboxApp::SetupScene(Scene* scene)
     floorMR->CreateConstantBuffer(m_DX12.GetDevice());
 
     auto* floorRB = floor->AddComponent<Rigidbody>();
-    floorRB->SetBoxHalfExtents({ 8.f, 0.5f, 8.f });
-    floorRB->SetStatic(true);
-    floorRB->SetFriction(0.7f);
+    floorRB->SetBoxHalfExtents({ 5.f, 0.1f, 5.f });
+    floorRB->SetStatic     (true);
+    floorRB->SetRestitution(0.4f);
+    floorRB->SetFriction   (0.6f);
 
-    // ---- Dynamic boxes -------------------------------------------------------
-    // Two rows (z = ±2.5), four columns at staggered heights so they tumble
-    // down asynchronously and make for an interesting first-second of physics.
-    static const DirectX::XMFLOAT3 kSpawnPositions[8] = {
-        { -4.5f, 2.0f, -2.5f },
-        { -1.5f, 3.5f, -2.5f },
-        {  1.5f, 5.0f, -2.5f },
-        {  4.5f, 6.5f, -2.5f },
-        { -4.5f, 2.0f,  2.5f },
-        { -1.5f, 3.5f,  2.5f },
-        {  1.5f, 5.0f,  2.5f },
-        {  4.5f, 6.5f,  2.5f },
-    };
+    // ---- Falling cube (dynamic rigidbody) -----------------------------------
+    // Start height y=6; initial tilt so the cube tumbles realistically on impact.
+    // restitution=0.5 → bounces to ~50% of drop height before settling.
+    auto* cube = scene->CreateGameObject("Cube");
+    cube->GetTransform()->SetPosition({ 0.f, 6.f, 0.f });
+    cube->GetTransform()->SetRotation({ 25.f, 40.f, 10.f }); // degrees (X, Y, Z euler)
 
-    for (int i = 0; i < 8; ++i) {
-        auto* box = scene->CreateGameObject("Box_" + std::to_string(i));
-        box->GetTransform()->SetPosition(kSpawnPositions[i]);
+    auto* cubeMR = cube->AddComponent<MeshRenderer>();
+    cubeMR->SetMesh(m_CubeMesh);
+    cubeMR->SetCommandList(m_DX12.GetCommandList());
+    cubeMR->SetMaterial(&m_BoxMaterial);
+    cubeMR->CreateConstantBuffer(m_DX12.GetDevice());
 
-        auto* mr = box->AddComponent<MeshRenderer>();
-        mr->SetMesh(m_CubeMesh);
-        mr->SetCommandList(m_DX12.GetCommandList());
-        mr->SetMaterial(&m_BoxMaterial);
-        mr->CreateConstantBuffer(m_DX12.GetDevice());
-
-        auto* rb = box->AddComponent<Rigidbody>();
-        rb->SetBoxHalfExtents({ 0.5f, 0.5f, 0.5f });
-        rb->SetRestitution(0.3f);
-        rb->SetFriction(0.6f);
-    }
+    auto* cubeRB = cube->AddComponent<Rigidbody>();
+    cubeRB->SetBoxHalfExtents({ 0.5f, 0.5f, 0.5f });
+    cubeRB->SetMass       (1.f);
+    cubeRB->SetRestitution(0.5f);
+    cubeRB->SetFriction   (0.5f);
 }
 
 // ---------------------------------------------------------------------------
@@ -154,32 +157,23 @@ void SandboxApp::RestartScene()
     auto* scene = SceneManager::Get().GetActiveScene();
     if (!scene) return;
 
-    // 1. Null our raw pointer before it becomes dangling.
     m_Camera = nullptr;
-
-    // 2. Destroy all GameObjects; ~GameObject() calls Rigidbody::OnDestroy()
-    //    which removes each body from Jolt before we tear down the system.
-    scene->Clear();
-
-    // 3. Full physics reset — re-Initialize gives us a fresh simulation.
+    scene->Clear();                       // ~GameObject() → Rigidbody::OnDestroy
     PhysicsWorld::Get().Shutdown();
     PhysicsWorld::Get().Initialize();
-
-    // 4. Repopulate — Start() is deferred to the next scene->Update call.
     SetupScene(scene);
 }
 
 // ---------------------------------------------------------------------------
 void SandboxApp::OnPreUpdate(float dt)
 {
-    // Step Jolt *before* scene Update so Rigidbody::Update reads this frame's positions.
+    // Step physics before scene Update so Rigidbody::Update reads current positions.
     PhysicsWorld::Get().Update(dt);
 }
 
 // ---------------------------------------------------------------------------
-void SandboxApp::OnUpdate(float dt)
+void SandboxApp::OnUpdate(float /*dt*/)
 {
-    (void)dt;
     if (InputManager::Get().IsKeyPressed(KeyCode::R))
         RestartScene();
 }
@@ -188,8 +182,8 @@ void SandboxApp::OnUpdate(float dt)
 void SandboxApp::OnRender()
 {
     m_DX12.BeginFrame();
-    auto* scene = SceneManager::Get().GetActiveScene();
-    if (scene) scene->Render();
+    if (auto* scene = SceneManager::Get().GetActiveScene())
+        scene->Render();
     m_DX12.EndFrame();
 }
 
@@ -204,10 +198,8 @@ void SandboxApp::OnResize(int w, int h)
 // ---------------------------------------------------------------------------
 void SandboxApp::OnShutdown()
 {
-    // Clear scene first so Rigidbody::OnDestroy runs before physics shuts down.
     if (auto* scene = SceneManager::Get().GetActiveScene())
-        scene->Clear();
-
+        scene->Clear();           // ensure Rigidbody::OnDestroy runs before Shutdown
     PhysicsWorld::Get().Shutdown();
 
     m_DX12.WaitForGPU();
