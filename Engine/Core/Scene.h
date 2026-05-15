@@ -1,5 +1,6 @@
 #pragma once
 #include "GameObject.h"
+#include "Layer.h"
 #include <vector>
 #include <memory>
 #include <string>
@@ -132,6 +133,19 @@ public:
         }
         return result;
     }
+
+    // ---- Search: layer ------------------------------------------------------
+
+    // First active GO on exactly this layer.
+    GameObject* FindByLayer(int layer) const;
+
+    // All active GOs on exactly this layer.
+    std::vector<GameObject*> FindAllByLayer(int layer) const;
+
+    // All active GOs whose layer bit is set in the mask.
+    //   LayerMask mask = LayerMask::From(Layer::Enemy) | LayerMask::From(Layer::Player);
+    //   auto gos = scene->FindAllByLayerMask(mask);
+    std::vector<GameObject*> FindAllByLayerMask(LayerMask mask) const;
 
     // ---- Search: predicate --------------------------------------------------
 

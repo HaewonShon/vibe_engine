@@ -141,6 +141,36 @@ std::vector<GameObject*> Scene::FindAllByTagExact(const GameplayTag& tag) const
 }
 
 // ============================================================================
+// Search: layer
+// ============================================================================
+
+GameObject* Scene::FindByLayer(int layer) const
+{
+    for (auto& go : m_GameObjects)
+        if (go->IsActive() && go->GetLayer() == layer)
+            return go.get();
+    return nullptr;
+}
+
+std::vector<GameObject*> Scene::FindAllByLayer(int layer) const
+{
+    std::vector<GameObject*> result;
+    for (auto& go : m_GameObjects)
+        if (go->IsActive() && go->GetLayer() == layer)
+            result.push_back(go.get());
+    return result;
+}
+
+std::vector<GameObject*> Scene::FindAllByLayerMask(LayerMask mask) const
+{
+    std::vector<GameObject*> result;
+    for (auto& go : m_GameObjects)
+        if (go->IsActive() && mask.Contains(go->GetLayer()))
+            result.push_back(go.get());
+    return result;
+}
+
+// ============================================================================
 // Search: predicate
 // ============================================================================
 

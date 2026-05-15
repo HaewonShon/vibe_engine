@@ -1,6 +1,7 @@
 #pragma once
 #include "Component.h"
 #include "GameplayTag.h"
+#include "Layer.h"
 #include <memory>
 #include <string>
 #include <typeindex>
@@ -41,6 +42,13 @@ public:
 
     Transform* GetTransform() const { return m_Transform; }
 
+    // ---- Layer API ----------------------------------------------------------
+    // Layer index (0-31). Use Layer:: constants.
+    //   go->SetLayer(Layer::Enemy);
+    //   if (go->GetLayer() == Layer::Player) { ... }
+    void SetLayer(int layer) { m_Layer = (layer >= 0 && layer < Layer::Count) ? layer : 0; }
+    int  GetLayer()    const { return m_Layer; }
+
     // ---- GameplayTag API ----------------------------------------------------
     // Add / remove a single tag.
     void AddTag(const GameplayTag& tag)    { m_Tags.AddTag(tag); }
@@ -62,6 +70,7 @@ private:
 
     std::unordered_map<std::type_index, std::unique_ptr<Component>> m_Components;
 
+    int  m_Layer = Layer::Default;
     GameplayTagContainer m_Tags;
 
     // Tracks whether Awake has fired — needed to call OnEnable after Awake.
