@@ -8,6 +8,8 @@
 #include "Renderer/Camera.h"
 #include "Renderer/Mesh.h"
 #include "Core/GameObject.h"
+#include "UI/UICanvas.h"
+#include "UI/UILabel.h"
 #include <memory>
 
 class SandboxApp : public VibeEngine::Application {
@@ -39,6 +41,11 @@ private:
 
     // Cached mesh — lifetime tied to ResourceManager
     std::shared_ptr<VibeEngine::Mesh> m_CubeMesh;
+
+    // ---- UI -----------------------------------------------------------------
+    VibeEngine::UICanvas m_Canvas;
+    VibeEngine::UILabel* m_FpsLabel  = nullptr;   // updated each frame
+    void SetupHUD();
 
     // ---- Live scene state ---------------------------------------------------
     VibeEngine::Camera* m_Camera = nullptr;   // raw ptr; nulled before Clear

@@ -8,7 +8,11 @@
 #include "Physics/PhysicsWorld.h"
 #include "Physics/Rigidbody.h"
 #include "Input/InputManager.h"
+#include "UI/UIRenderer.h"
+#include "UI/UIPanel.h"
+#include "UI/UIButton.h"
 #include <string>
+#include <cstdio>
 
 using namespace VibeEngine;
 
@@ -45,9 +49,16 @@ void SandboxApp::OnInit()
     m_CubeMesh = ResourceManager::Get().GetCube();
     auto texture = ResourceManager::Get().GetOrLoadTexture(
                        GetExeDir() + L"Textures/checkerboard.png");
+
+    // Init UI renderer in the same upload pass (font atlas is uploaded to GPU)
+    UIRenderer::Get().Initialize(
+        m_DX12.GetDevice(), m_DX12.GetCommandList(),
+        m_DX12.GetBackBufferFormat(), 1280, 720);
+
     m_DX12.EndFrame();
     m_DX12.WaitForGPU();
     ResourceManager::Get().ReleaseUploadBuffers();
+    UIRenderer::Get().ReleaseUploadBuffer();
 
     LightManager::Get().Initialize(m_DX12.GetDevice());
 
@@ -80,6 +91,63 @@ void SandboxApp::OnInit()
     PhysicsWorld::Get().Initialize();
 
     SetupScene(scene);
+    SetupHUD();
+}
+
+// ---------------------------------------------------------------------------
+// SetupHUD  — builds the 2D overlay once (survives scene restarts)
+// ---------------------------------------------------------------------------
+void SandboxApp::SetupHUD()
+{
+    m_Canvas.Clear();
+
+    const float pad = 12.f;
+    const float pw  = 240.f, ph = 100.f;
+
+    // ---- Background panel (top-left) ----------------------------------------
+    auto* panel         = m_Canvas.AddElement<UIPanel>();
+    panel->SetRect(pad, pad, pw, ph);
+    panel->backgroundColor  = { 0.05f, 0.05f, 0.08f, 0.78f };
+    panel->borderColor      = { 0.50f, 0.60f, 0.80f, 0.90f };
+    panel->borderWidth      = 1.5f;
+
+    // Title
+    auto* title = m_Canvas.AddElement<UILabel>();
+    title->SetRect(pad + 10.f, pad + 8.f, pw - 20.f, 0.f);
+    title->text  = "VibeEngine";
+    title->color = { 0.65f, 0.80f, 1.00f, 1.f };
+    title->scale = 1.4f;
+    title->align = UILabel::Align::Left;
+
+    // Subtitle
+    auto* sub = m_Canvas.AddElement<UILabel>();
+    sub->SetRect(pad + 10.f, pad + 36.f, pw - 20.f, 0.f);
+    sub->text  = "Physics Demo";
+    sub->color = { 0.85f, 0.85f, 0.85f, 1.f };
+    sub->scale = 1.0f;
+
+    // FPS counter (updated every frame in OnUpdate)
+    m_FpsLabel = m_Canvas.AddElement<UILabel>();
+    m_FpsLabel->SetRect(pad + 10.f, pad + 58.f, pw - 20.f, 0.f);
+    m_FpsLabel->text  = "0.0 FPS";
+    m_FpsLabel->color = { 0.60f, 1.00f, 0.60f, 1.f };
+    m_FpsLabel->scale = 0.9f;
+
+    // ---- Hint label (bottom-left) -------------------------------------------
+    auto* hint = m_Canvas.AddElement<UILabel>();
+    hint->SetRect(pad, static_cast<float>(GetWindow()->GetHeight()) - 30.f, 0.f, 0.f);
+    hint->text  = "R = Restart simulation";
+    hint->color = { 0.75f, 0.75f, 0.75f, 0.85f };
+    hint->scale = 0.9f;
+
+    // ---- Restart button (top-right corner) ----------------------------------
+    const float bw = 120.f, bh = 32.f;
+    const float bx = static_cast<float>(GetWindow()->GetWidth()) - bw - pad;
+    auto* btn = m_Canvas.AddElement<UIButton>();
+    btn->SetRect(bx, pad, bw, bh);
+    btn->label = "Restart";
+    btn->hwnd  = GetWindow()->GetHandle();
+    btn->SetOnClick([this] { RestartScene(); });
 }
 
 // ---------------------------------------------------------------------------
@@ -175,18 +243,41 @@ void SandboxApp::OnPreUpdate(float dt)
 }
 
 // ---------------------------------------------------------------------------
-void SandboxApp::OnUpdate(float /*dt*/)
+void SandboxApp::OnUpdate(float dt)
 {
     if (InputManager::Get().IsKeyPressed(KeyCode::R))
         RestartScene();
+
+    // Update UI widgets (button hover/click state, etc.)
+    m_Canvas.Update(dt);
+
+    // Refresh FPS label
+    if (m_FpsLabel && dt > 0.f) {
+        static float fpsSmooth = 0.f;
+        fpsSmooth = fpsSmooth * 0.9f + (1.f / dt) * 0.1f;
+        char buf[32];
+        std::snprintf(buf, sizeof(buf), "%.1f FPS", fpsSmooth);
+        m_FpsLabel->text = buf;
+    }
 }
 
 // ---------------------------------------------------------------------------
 void SandboxApp::OnRender()
 {
     m_DX12.BeginFrame();
+
     if (auto* scene = SceneManager::Get().GetActiveScene())
         scene->Render();
+
+    // 2D UI overlay — rendered on top of the 3D scene
+    if (UIRenderer::Get().IsInitialized()) {
+        UIRenderer::Get().BeginPass(m_DX12.GetCommandList(),
+                                    static_cast<UINT>(GetWindow()->GetWidth()),
+                                    static_cast<UINT>(GetWindow()->GetHeight()));
+        m_Canvas.Draw(UIRenderer::Get());
+        UIRenderer::Get().EndPass();
+    }
+
     m_DX12.EndFrame();
 }
 
@@ -206,6 +297,7 @@ void SandboxApp::OnShutdown()
     PhysicsWorld::Get().Shutdown();
 
     m_DX12.WaitForGPU();
+    UIRenderer::Get().Shutdown();
     m_Pipeline.Destroy();
     ResourceManager::Get().Shutdown();
     m_DX12.Shutdown();
