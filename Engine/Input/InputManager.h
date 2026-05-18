@@ -16,6 +16,8 @@ enum class KeyCode : int {
     Escape = VK_ESCAPE,
     Space  = VK_SPACE,
     Enter  = VK_RETURN,
+    Tab    = VK_TAB,
+    Delete = VK_DELETE,
 };
 
 class InputManager {

@@ -23,12 +23,16 @@ void LightManager::Upload()
 {
     if (!m_Mapped || !m_Dirty) return;
     LightCB cb;
-    cb.Direction = m_Direction;
-    cb.Intensity = m_Intensity;
-    cb.Color     = m_Color;
-    cb.Pad0      = 0.f;
-    cb.Ambient   = m_Ambient;
-    cb.Pad1      = 0.f;
+    cb.Direction  = m_Direction;
+    cb.Intensity  = m_Intensity;
+    cb.Color      = m_Color;
+    cb.Pad0       = 0.f;
+    cb.Ambient    = m_Ambient;
+    cb.Pad1       = 0.f;
+    cb.CameraPos  = m_CameraPos;
+    cb.Pad2       = 0.f;
+    cb.ScreenSize = m_ScreenSize;
+    cb.ScreenPad  = { 0.f, 0.f };
     memcpy(m_Mapped, &cb, sizeof(LightCB));
     m_Dirty = false;
 }

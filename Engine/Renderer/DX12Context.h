@@ -30,8 +30,24 @@ public:
     ID3D12CommandQueue*        GetCommandQueue() const { return m_CommandQueue.Get(); }
     UINT                       GetBackBufferIndex() const { return m_BackBufferIndex; }
     DXGI_FORMAT                GetBackBufferFormat() const { return DXGI_FORMAT_R8G8B8A8_UNORM; }
+    UINT                       GetWidth()  const { return m_Width; }
+    UINT                       GetHeight() const { return m_Height; }
+
+    // Current back-buffer RTV handle (changes each frame with the swap chain).
+    D3D12_CPU_DESCRIPTOR_HANDLE GetCurrentRTV() const;
+    // Shared depth-stencil view handle.
+    D3D12_CPU_DESCRIPTOR_HANDLE GetDSV() const;
+
+    // Depth buffer as shader resource (R32_FLOAT view).
+    // Valid after Initialize(); the GPU handle stays stable across Resize().
+    D3D12_GPU_DESCRIPTOR_HANDLE GetDepthSRV()      const { return m_DepthSRVGPU; }
+    ID3D12Resource*             GetDepthResource() const { return m_DepthBuffer.Get(); }
 
     void WaitForGPU();
+
+    // Re-bind the main back-buffer RTV + depth DSV after an intermediate pass
+    // (e.g. shadow pass) has changed OMSetRenderTargets to a different target.
+    void BindMainRenderTarget(ID3D12GraphicsCommandList* cmdList);
 
     struct SRVAllocation {
         D3D12_CPU_DESCRIPTOR_HANDLE cpu;
@@ -64,6 +80,12 @@ private:
 
     ComPtr<ID3D12Resource>        m_DepthBuffer;
     ComPtr<ID3D12DescriptorHeap>  m_DSVHeap;
+
+    // Depth SRV (R32_FLOAT view of R32_TYPELESS depth buffer).
+    // Slot is allocated once in Initialize(); descriptor is refreshed on Resize().
+    D3D12_CPU_DESCRIPTOR_HANDLE m_DepthSRVCPU         = {};
+    D3D12_GPU_DESCRIPTOR_HANDLE m_DepthSRVGPU         = {};
+    bool                        m_DepthSRVAllocated   = false;
 
     ComPtr<ID3D12DescriptorHeap> m_SRVHeap;
     UINT m_SRVDescriptorSize = 0;

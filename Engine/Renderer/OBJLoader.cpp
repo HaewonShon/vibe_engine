@@ -154,6 +154,8 @@ Mesh OBJLoader::Load(ID3D12Device* device,
         }
     }
 
+    Mesh::ComputeTangents(vertices, indices);
+
     Mesh mesh;
     mesh.Create(device, cmdList, vertices, indices);
     return mesh;

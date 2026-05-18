@@ -34,7 +34,7 @@ PSInput VS_Main(VSInput v)
 {
     PSInput o;
     // Screen-pixel pos → NDC via ortho matrix
-    o.svpos = mul(g_OrthoProj, float4(v.pos, 0.0f, 1.0f));
+    o.svpos = mul(float4(v.pos, 0.0f, 1.0f), g_OrthoProj);
     o.uv    = v.uv;
     o.color = v.color;
     return o;

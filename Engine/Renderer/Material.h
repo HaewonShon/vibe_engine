@@ -19,14 +19,18 @@ public:
     void SetMetallic (float m)                                  { m_Metallic           = m;         m_Dirty = true; }
     void SetEmissive (const DirectX::XMFLOAT3& e, float i = 1.f) { m_Emissive         = e;
                                                                     m_EmissiveIntensity = i;         m_Dirty = true; }
-    void SetTexture  (Texture* t)      { m_Texture  = t; }
-    void SetPipeline (BasicPipeline* p){ m_Pipeline = p; }
+    void SetTexture   (Texture* t)      { m_Texture    = t; }
+    void SetNormalMap (Texture* t)      { m_NormalMap  = t; }
+    void SetPipeline  (BasicPipeline* p){ m_Pipeline   = p; }
 
-    const DirectX::XMFLOAT4& GetAlbedo()    const { return m_Albedo; }
-    float                     GetRoughness() const { return m_Roughness; }
-    float                     GetMetallic()  const { return m_Metallic; }
-    Texture*                  GetTexture()   const { return m_Texture; }
-    BasicPipeline*            GetPipeline()  const { return m_Pipeline; }
+    const DirectX::XMFLOAT4& GetAlbedo()            const { return m_Albedo; }
+    float                     GetRoughness()         const { return m_Roughness; }
+    float                     GetMetallic()          const { return m_Metallic; }
+    const DirectX::XMFLOAT3& GetEmissive()           const { return m_Emissive; }
+    float                     GetEmissiveIntensity() const { return m_EmissiveIntensity; }
+    Texture*                  GetTexture()           const { return m_Texture; }
+    Texture*                  GetNormalMap()         const { return m_NormalMap; }
+    BasicPipeline*            GetPipeline()          const { return m_Pipeline; }
 
     // Upload dirty data to GPU; call once per frame before Draw
     void Upload();
@@ -51,8 +55,9 @@ private:
     float              m_EmissiveIntensity   = 0.0f;
     bool               m_Dirty              = true;
 
-    Texture*       m_Texture  = nullptr;
-    BasicPipeline* m_Pipeline = nullptr;
+    Texture*       m_Texture    = nullptr;
+    Texture*       m_NormalMap  = nullptr;
+    BasicPipeline* m_Pipeline   = nullptr;
 
     ComPtr<ID3D12Resource> m_Buffer;
     void*                  m_Mapped = nullptr;

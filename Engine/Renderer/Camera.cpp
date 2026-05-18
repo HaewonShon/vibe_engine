@@ -69,7 +69,7 @@ void Camera::Update(float dt)
     }
 }
 
-XMMATRIX Camera::GetViewProjectionMatrix() const
+XMMATRIX Camera::GetViewMatrix() const
 {
     auto* go = GetGameObject();
     XMFLOAT3 pos = { 0.f, 0.f, -3.f };
@@ -85,10 +85,31 @@ XMMATRIX Camera::GetViewProjectionMatrix() const
     XMVECTOR focus = XMVectorAdd(eye, forward);
     XMVECTOR up    = XMVectorSet(0.f, 1.f, 0.f, 0.f);
 
-    XMMATRIX view = XMMatrixLookAtLH(eye, focus, up);
-    XMMATRIX proj = XMMatrixPerspectiveFovLH(
+    return XMMatrixLookAtLH(eye, focus, up);
+}
+
+XMMATRIX Camera::GetProjectionMatrix() const
+{
+    return XMMatrixPerspectiveFovLH(
         XMConvertToRadians(m_FOV), m_Aspect, m_Near, m_Far);
-    return view * proj;
+}
+
+XMMATRIX Camera::GetViewProjectionMatrix() const
+{
+    return GetViewMatrix() * GetProjectionMatrix();
+}
+
+Camera::Ray Camera::ScreenToRay(float ndcX, float ndcY) const
+{
+    XMMATRIX invVP  = XMMatrixInverse(nullptr, GetViewProjectionMatrix());
+    XMVECTOR nearPt = XMVector3TransformCoord(XMVectorSet(ndcX, ndcY, 0.f, 1.f), invVP);
+    XMVECTOR farPt  = XMVector3TransformCoord(XMVectorSet(ndcX, ndcY, 1.f, 1.f), invVP);
+    XMVECTOR dir    = XMVector3Normalize(farPt - nearPt);
+
+    Ray ray;
+    XMStoreFloat3(&ray.Origin,    nearPt);
+    XMStoreFloat3(&ray.Direction, dir);
+    return ray;
 }
 
 } // namespace VibeEngine

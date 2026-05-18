@@ -165,24 +165,29 @@ void DX12Context::CreateBackBuffers()
 
 void DX12Context::CreateDepthBuffer()
 {
-    // DSV descriptor heap (1 descriptor, non-shader-visible)
-    D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-    heapDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-    heapDesc.NumDescriptors = 1;
-    heapDesc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-    ThrowIfFailed(m_Device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_DSVHeap)),
-                  "CreateDescriptorHeap DSV");
+    // DSV descriptor heap (1 descriptor, non-shader-visible) — created once.
+    if (!m_DSVHeap) {
+        D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+        heapDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+        heapDesc.NumDescriptors = 1;
+        heapDesc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+        ThrowIfFailed(m_Device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_DSVHeap)),
+                      "CreateDescriptorHeap DSV");
+    }
 
+    // Use R32_TYPELESS so we can create both a DSV (D32_FLOAT) and an SRV
+    // (R32_FLOAT) on the same resource — required for SSAO depth sampling.
     D3D12_RESOURCE_DESC depthDesc = {};
-    depthDesc.Dimension          = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-    depthDesc.Width              = m_Width;
-    depthDesc.Height             = m_Height;
-    depthDesc.DepthOrArraySize   = 1;
-    depthDesc.MipLevels          = 1;
-    depthDesc.Format             = DXGI_FORMAT_D32_FLOAT;
-    depthDesc.SampleDesc         = { 1, 0 };
-    depthDesc.Flags              = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+    depthDesc.Dimension        = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    depthDesc.Width            = m_Width;
+    depthDesc.Height           = m_Height;
+    depthDesc.DepthOrArraySize = 1;
+    depthDesc.MipLevels        = 1;
+    depthDesc.Format           = DXGI_FORMAT_R32_TYPELESS;   // typeless for dual view
+    depthDesc.SampleDesc       = { 1, 0 };
+    depthDesc.Flags            = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
+    // Clear value must use the concrete depth format, not the typeless format.
     D3D12_CLEAR_VALUE clearVal = {};
     clearVal.Format               = DXGI_FORMAT_D32_FLOAT;
     clearVal.DepthStencil.Depth   = 1.0f;
@@ -195,12 +200,31 @@ void DX12Context::CreateDepthBuffer()
         IID_PPV_ARGS(&m_DepthBuffer)),
         "CreateCommittedResource DepthBuffer");
 
+    // DSV — D32_FLOAT view of the typeless resource
     D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
     dsvDesc.Format        = DXGI_FORMAT_D32_FLOAT;
     dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
     m_Device->CreateDepthStencilView(
         m_DepthBuffer.Get(), &dsvDesc,
         m_DSVHeap->GetCPUDescriptorHandleForHeapStart());
+
+    // SRV — R32_FLOAT view (for SSAO depth sampling).
+    // Allocate a slot in the shared SRV heap only once; on Resize() we just
+    // update the descriptor at the same slot to point to the new resource.
+    if (!m_DepthSRVAllocated) {
+        auto alloc       = AllocateSRV();
+        m_DepthSRVCPU    = alloc.cpu;
+        m_DepthSRVGPU    = alloc.gpu;
+        m_DepthSRVAllocated = true;
+    }
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Format                    = DXGI_FORMAT_R32_FLOAT;
+    srvDesc.ViewDimension             = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Shader4ComponentMapping   = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Texture2D.MipLevels       = 1;
+    srvDesc.Texture2D.MostDetailedMip = 0;
+    m_Device->CreateShaderResourceView(m_DepthBuffer.Get(), &srvDesc, m_DepthSRVCPU);
 }
 
 void DX12Context::CreateSRVHeap()
@@ -275,7 +299,7 @@ void DX12Context::BeginFrame()
     auto dsv = m_DSVHeap->GetCPUDescriptorHandleForHeapStart();
     m_CommandList->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
 
-    static constexpr float CLEAR_COLOR[] = { 0.05f, 0.05f, 0.05f, 1.0f }; // near black
+    static constexpr float CLEAR_COLOR[] = { 0.05f, 0.05f, 0.05f, 1.0f };
     m_CommandList->ClearRenderTargetView(rtv, CLEAR_COLOR, 0, nullptr);
     m_CommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 }
@@ -306,6 +330,27 @@ void DX12Context::WaitForGPU()
     m_FenceValues[m_BackBufferIndex]++;
 }
 
+// ---------------------------------------------------------------------------
+// BindMainRenderTarget
+//
+// Re-binds the main back-buffer RTV + depth DSV and restores the main
+// viewport/scissor rect after an intermediate pass (e.g. shadow pass) has
+// changed OMSetRenderTargets / RSSetViewports to a different target.
+// ---------------------------------------------------------------------------
+void DX12Context::BindMainRenderTarget(ID3D12GraphicsCommandList* cmdList)
+{
+    D3D12_VIEWPORT vp = { 0.f, 0.f,
+        static_cast<float>(m_Width), static_cast<float>(m_Height), 0.f, 1.f };
+    D3D12_RECT sc = { 0, 0, static_cast<LONG>(m_Width), static_cast<LONG>(m_Height) };
+    cmdList->RSSetViewports(1, &vp);
+    cmdList->RSSetScissorRects(1, &sc);
+
+    auto rtv = OffsetHandle(m_RTVHeap->GetCPUDescriptorHandleForHeapStart(),
+                            m_BackBufferIndex, m_RTVDescriptorSize);
+    auto dsv = m_DSVHeap->GetCPUDescriptorHandleForHeapStart();
+    cmdList->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
+}
+
 void DX12Context::MoveToNextFrame()
 {
     UINT64 currentFenceVal = m_FenceValues[m_BackBufferIndex];
@@ -318,6 +363,17 @@ void DX12Context::MoveToNextFrame()
         WaitForSingleObjectEx(m_FenceEvent, INFINITE, FALSE);
     }
     m_FenceValues[m_BackBufferIndex] = currentFenceVal + 1;
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE DX12Context::GetCurrentRTV() const
+{
+    return OffsetHandle(m_RTVHeap->GetCPUDescriptorHandleForHeapStart(),
+                        static_cast<int>(m_BackBufferIndex), m_RTVDescriptorSize);
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE DX12Context::GetDSV() const
+{
+    return m_DSVHeap->GetCPUDescriptorHandleForHeapStart();
 }
 
 void DX12Context::Resize(UINT width, UINT height)

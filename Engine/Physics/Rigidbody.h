@@ -48,6 +48,9 @@ public:
     Rigidbody()           = default;
     ~Rigidbody() override = default;
 
+    // ---- Shape type (public so SceneSerializer can inspect it) --------------
+    enum class ShapeType { Box, Sphere, Capsule };
+
     // ---- Lifecycle ----------------------------------------------------------
     void Start()            override;
     void Update(float dt)   override;
@@ -103,13 +106,20 @@ public:
     bool     IsValid()     const { return m_BodyID != 0xFFFFFFFFu; }
     uint32_t GetBodyID()   const { return m_BodyID; }
 
+    // ---- Config read (used by SceneSerializer) --------------------------------
+    ShapeType         GetShapeType()         const { return m_ShapeType; }
+    DirectX::XMFLOAT3 GetHalfExtents()       const { return m_HalfExtents; }
+    float             GetRadius()            const { return m_Radius; }
+    float             GetCapsuleHalfHeight() const { return m_CapsuleHalfHeight; }
+    float             GetMass()              const { return m_Mass; }
+    float             GetRestitution()       const { return m_Restitution; }
+    float             GetFriction()          const { return m_Friction; }
+
     // ---- Contact dispatch (called by PhysicsWorld — not user API) -----------
     void DispatchContactBegin(Rigidbody* other, bool isTrigger);
     void DispatchContactEnd  (Rigidbody* other, bool isTrigger);
 
 private:
-    enum class ShapeType { Box, Sphere, Capsule };
-
     // Shape
     ShapeType             m_ShapeType         = ShapeType::Box;
     DirectX::XMFLOAT3     m_HalfExtents       = { 0.5f, 0.5f, 0.5f };

@@ -19,6 +19,10 @@ public:
     virtual void OnShutdown()           {}
     virtual void OnResize(int /*w*/, int /*h*/) {}
 
+    // Called for every Win32 message before the engine's own WM_SIZE / WM_ACTIVATE
+    // handling.  Override to forward messages to ImGui or other subsystems.
+    virtual void OnWindowMessage(UINT /*msg*/, WPARAM /*wp*/, LPARAM /*lp*/) {}
+
     Window* GetWindow() const { return m_Window.get(); }
     static Application* Get() { return s_Instance; }
 

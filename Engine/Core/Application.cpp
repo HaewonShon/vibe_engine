@@ -21,6 +21,9 @@ Application::Application(const std::string& title, int width, int height)
 
     // Forward WM_SIZE to the virtual OnResize hook
     m_Window->SetEventCallback([this](UINT msg, WPARAM wp, LPARAM lp) {
+        // Let subclasses (e.g. ImGui) see every message first.
+        OnWindowMessage(msg, wp, lp);
+
         if (msg == WM_SIZE && wp != SIZE_MINIMIZED) {
             int w = static_cast<int>(LOWORD(lp));
             int h = static_cast<int>(HIWORD(lp));

@@ -20,7 +20,27 @@ public:
     void SetYaw      (float deg)           { m_Yaw       = deg; }
     void SetPitch    (float deg)           { m_Pitch     = std::clamp(deg, -89.f, 89.f); }
 
+    float GetFOV()       const { return m_FOV; }
+    float GetAspect()    const { return m_Aspect; }
+    float GetNearZ()     const { return m_Near; }
+    float GetFarZ()      const { return m_Far; }
+    float GetYaw()       const { return m_Yaw; }
+    float GetPitch()     const { return m_Pitch; }
+    float GetMoveSpeed() const { return m_MoveSpeed; }
+    float GetLookSpeed() const { return m_LookSpeed; }
+
     DirectX::XMMATRIX GetViewProjectionMatrix() const;
+    DirectX::XMMATRIX GetViewMatrix()           const;
+    DirectX::XMMATRIX GetProjectionMatrix()     const;
+
+    // Screen-to-world ray for object picking.
+    // ndcX, ndcY are in [-1, +1] Normalized Device Coordinates
+    // (right=+1, up=+1 convention matching DX clip space).
+    struct Ray {
+        DirectX::XMFLOAT3 Origin;
+        DirectX::XMFLOAT3 Direction;  // normalized
+    };
+    Ray ScreenToRay(float ndcX, float ndcY) const;
 
 private:
     // Projection

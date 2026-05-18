@@ -6,6 +6,7 @@
 #include "../Renderer/Mesh.h"
 #include "../Renderer/Texture.h"
 #include "../Renderer/OBJLoader.h"
+#include "../Renderer/FBXLoader.h"
 
 namespace VibeEngine {
 
@@ -26,15 +27,27 @@ public:
     std::shared_ptr<Mesh> GetOrLoadMesh(const std::string& name,
                                          std::function<Mesh()> factory);
 
-    // Built-in geometry (cached under "__cube" / "__plane")
+    // Built-in geometry (cached under "__cube" / "__plane" / "__grid_N")
     std::shared_ptr<Mesh> GetCube ();
     std::shared_ptr<Mesh> GetPlane();
+    // NxN subdivided flat grid — eliminates perspective-seam on large floors.
+    std::shared_ptr<Mesh> GetGrid (int divisions = 8);
 
     bool HasMesh(const std::string& name) const;
 
-    // Load an OBJ file and cache it by path. Returns nullptr on failure.
+    // Load an OBJ/FBX file and cache it by path. Returns nullptr on failure.
     // Must be called between BeginFrame/EndFrame.
     std::shared_ptr<Mesh> LoadModel(const std::wstring& path);
+
+    // FBX only — loads geometry AND extracts material data from the file.
+    // On cache hit the mesh is returned but materialOut is left at defaults
+    // (material data is not re-extracted on cache hit).
+    // Must be called between BeginFrame/EndFrame.
+    struct ModelWithMaterial {
+        std::shared_ptr<Mesh> mesh;
+        FbxMaterialData       material;   // valid only on first load (not cached)
+    };
+    ModelWithMaterial LoadModelWithMaterial(const std::wstring& path);
 
     // ---- Texture ------------------------------------------------------------
     // Returns cached texture, or loads from disk and caches.
