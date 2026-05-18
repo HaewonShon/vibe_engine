@@ -18,6 +18,8 @@ enum class KeyCode : int {
     Enter  = VK_RETURN,
     Tab    = VK_TAB,
     Delete = VK_DELETE,
+    Ctrl   = VK_CONTROL,
+    Shift  = VK_SHIFT,
 };
 
 class InputManager {

@@ -27,6 +27,28 @@
 using namespace VibeEngine;
 
 // ---------------------------------------------------------------------------
+// TransformCmd — records a single Transform change for Undo/Redo.
+// Captures position + rotation + scale together to handle gizmo drags
+// (which may combine all three) as a single undoable step.
+// ---------------------------------------------------------------------------
+struct TransformCmd : ICommand {
+    GameObject*           go  = nullptr;
+    DirectX::XMFLOAT3 oldP{}, oldR{}, oldS{};
+    DirectX::XMFLOAT3 newP{}, newR{}, newS{};
+
+    void Execute() override {
+        if (!go) return;
+        auto* t = go->GetTransform();
+        t->SetPosition(newP); t->SetRotation(newR); t->SetScale(newS);
+    }
+    void Undo() override {
+        if (!go) return;
+        auto* t = go->GetTransform();
+        t->SetPosition(oldP); t->SetRotation(oldR); t->SetScale(oldS);
+    }
+};
+
+// ---------------------------------------------------------------------------
 static std::wstring GetExeDir()
 {
     wchar_t buf[MAX_PATH];
@@ -606,6 +628,8 @@ void SandboxApp::RestartCurrentDemo()
     m_Camera     = nullptr;
     m_SelectedGO = nullptr;
     m_FbxMaterials.clear();
+    m_UndoStack.Clear();
+    m_IsPlaying = false;
     scene->Clear();
     PhysicsWorld::Get().Shutdown();
     PhysicsWorld::Get().Initialize();
@@ -624,6 +648,8 @@ void SandboxApp::SwitchDemo()
 
     m_Camera     = nullptr;
     m_SelectedGO = nullptr;
+    m_UndoStack.Clear();
+    m_IsPlaying = false;
     scene->Clear();
     PhysicsWorld::Get().Shutdown();
     PhysicsWorld::Get().Initialize();
@@ -935,6 +961,76 @@ void SandboxApp::SetupSkeletalScene(Scene* scene)
 }
 
 // ---------------------------------------------------------------------------
+// DuplicateSelected — Ctrl+D: copy selected GO + its MeshRenderer.
+// The new object is placed 0.5 units to the right of the original.
+// ---------------------------------------------------------------------------
+void SandboxApp::DuplicateSelected()
+{
+    auto* scene = SceneManager::Get().GetActiveScene();
+    if (!scene || !m_SelectedGO) return;
+
+    auto* orig = m_SelectedGO;
+    auto* dup  = scene->CreateGameObject(orig->GetName() + " (Copy)");
+
+    // Copy transform (local, assuming top-level object)
+    auto* ot = orig->GetTransform();
+    auto* dt = dup->GetTransform();
+    auto  p  = ot->GetLocalPosition();
+    p.x += 0.5f;                        // slight offset so it's not hidden behind original
+    dt->SetPosition(p);
+    dt->SetRotation(ot->GetLocalRotation());
+    dt->SetScale   (ot->GetLocalScale());
+
+    // Copy MeshRenderer if present
+    if (auto* mr = orig->GetComponent<MeshRenderer>()) {
+        auto* dmr = dup->AddComponent<MeshRenderer>();
+        dmr->SetMesh       (mr->GetMesh());
+        dmr->SetMaterial   (mr->GetMaterial());
+        dmr->SetCommandList(m_DX12.GetCommandList());
+        dmr->SetShadowMap  (&m_ShadowMap);
+        dmr->SetIBLMap     (&m_IBLMap);
+        dmr->SetFlatNormal (&m_FlatNormal);
+        dmr->SetAOPass     (&m_SSAOPass);
+        dmr->CreateConstantBuffer(m_DX12.GetDevice());
+    }
+
+    m_SelectedGO = dup;
+}
+
+// ---------------------------------------------------------------------------
+// FocusCamera — F key: move editor camera to frame the selected GO.
+// ---------------------------------------------------------------------------
+void SandboxApp::FocusCamera()
+{
+    if (!m_Camera || !m_SelectedGO) return;
+    auto* camGO = m_Camera->GetGameObject();
+    if (!camGO) return;
+
+    auto* t  = m_SelectedGO->GetTransform();
+    auto* ct = camGO->GetTransform();
+
+    // World-space centre from world matrix
+    DirectX::XMFLOAT4X4 wf;
+    DirectX::XMStoreFloat4x4(&wf, t->GetWorldMatrix());
+    DirectX::XMFLOAT3 center = { wf._41, wf._42, wf._43 };
+
+    // Move camera back along its current forward direction, at a fixed distance
+    float dist = 5.0f;
+    float yRad = DirectX::XMConvertToRadians(m_Camera->GetYaw());
+    float pRad = DirectX::XMConvertToRadians(m_Camera->GetPitch());
+    DirectX::XMFLOAT3 forward = {
+        sinf(yRad) * cosf(pRad),
+       -sinf(pRad),
+        cosf(yRad) * cosf(pRad)
+    };
+    ct->SetPosition({
+        center.x - forward.x * dist,
+        center.y - forward.y * dist,
+        center.z - forward.z * dist
+    });
+}
+
+// ---------------------------------------------------------------------------
 void SandboxApp::SaveScene()
 {
     auto* scene = SceneManager::Get().GetActiveScene();
@@ -978,8 +1074,9 @@ void SandboxApp::OnWindowMessage(UINT msg, WPARAM wp, LPARAM lp)
 // ---------------------------------------------------------------------------
 void SandboxApp::OnPreUpdate(float dt)
 {
-    // Step physics before scene Update so Rigidbody::Update reads current positions.
-    PhysicsWorld::Get().Update(dt);
+    // Step physics only while in Play mode; editor mode freezes simulation.
+    if (m_IsPlaying)
+        PhysicsWorld::Get().Update(dt);
 }
 
 // ---------------------------------------------------------------------------
@@ -991,16 +1088,31 @@ void SandboxApp::OnUpdate(float dt)
                             && ImGui::GetIO().WantCaptureKeyboard;
 
     if (!imguiWantsKb) {
-        if (InputManager::Get().IsKeyPressed(KeyCode::R))
-            RestartCurrentDemo();
+        auto& inp = InputManager::Get();
+        bool  ctrl = inp.IsKeyDown(KeyCode::Ctrl);
 
-        if (InputManager::Get().IsKeyPressed(KeyCode::Tab))
-            SwitchDemo();
+        // ---- Undo / Redo (Ctrl+Z / Ctrl+Y) ----------------------------------
+        if (ctrl && inp.IsKeyPressed(KeyCode::Z)) m_UndoStack.Undo();
+        if (ctrl && inp.IsKeyPressed(KeyCode::Y)) m_UndoStack.Redo();
 
-        // Physics-mode only: save / load scene state
-        if (m_DemoMode == DemoMode::Physics) {
-            if (InputManager::Get().IsKeyPressed(KeyCode::S)) SaveScene();
-            if (InputManager::Get().IsKeyPressed(KeyCode::L)) LoadScene();
+        // ---- Duplicate (Ctrl+D) ---------------------------------------------
+        if (ctrl && inp.IsKeyPressed(KeyCode::D)) DuplicateSelected();
+
+        // ---- Focus camera (F) -----------------------------------------------
+        if (!ctrl && inp.IsKeyPressed(KeyCode::F)) FocusCamera();
+
+        // ---- Play / Stop (Space) --------------------------------------------
+        if (!ctrl && inp.IsKeyPressed(KeyCode::Space))
+            m_IsPlaying = !m_IsPlaying;
+
+        if (!ctrl) {
+            if (inp.IsKeyPressed(KeyCode::R))   RestartCurrentDemo();
+            if (inp.IsKeyPressed(KeyCode::Tab))  SwitchDemo();
+
+            if (m_DemoMode == DemoMode::Physics) {
+                if (inp.IsKeyPressed(KeyCode::S)) SaveScene();
+                if (inp.IsKeyPressed(KeyCode::L)) LoadScene();
+            }
         }
     }
 
@@ -1333,6 +1445,55 @@ void SandboxApp::RenderDebugUI()
     // ---- Menu bar -----------------------------------------------------------
     if (ImGui::BeginMenuBar()) {
 
+        // Edit ----------------------------------------------------------------
+        if (ImGui::BeginMenu("Edit")) {
+            ImGui::BeginDisabled(!m_UndoStack.CanUndo());
+            std::string undoLabel = "Undo";
+            if (m_UndoStack.CanUndo())
+                undoLabel = "Undo  " + m_UndoStack.GetUndoLabel();
+            if (ImGui::MenuItem(undoLabel.c_str(), "Ctrl+Z"))
+                m_UndoStack.Undo();
+            ImGui::EndDisabled();
+
+            ImGui::BeginDisabled(!m_UndoStack.CanRedo());
+            std::string redoLabel = "Redo";
+            if (m_UndoStack.CanRedo())
+                redoLabel = "Redo  " + m_UndoStack.GetRedoLabel();
+            if (ImGui::MenuItem(redoLabel.c_str(), "Ctrl+Y"))
+                m_UndoStack.Redo();
+            ImGui::EndDisabled();
+
+            ImGui::Separator();
+            ImGui::BeginDisabled(m_SelectedGO == nullptr);
+            if (ImGui::MenuItem("Duplicate", "Ctrl+D")) DuplicateSelected();
+            if (ImGui::MenuItem("Focus",     "F"))       FocusCamera();
+            ImGui::EndDisabled();
+            ImGui::EndMenu();
+        }
+
+        // Play / Stop ---------------------------------------------------------
+        {
+            const float btnW = 72.f;
+            // Centre the button in the available menu bar space
+            float centerX = (ImGui::GetContentRegionMax().x - btnW) * 0.5f;
+            if (centerX > ImGui::GetCursorPosX())
+                ImGui::SetCursorPosX(centerX);
+
+            if (!m_IsPlaying) {
+                ImGui::PushStyleColor(ImGuiCol_Button,
+                    ImVec4(0.20f, 0.55f, 0.20f, 1.f));
+                if (ImGui::Button("  Play  "))
+                    m_IsPlaying = true;
+                ImGui::PopStyleColor();
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Button,
+                    ImVec4(0.70f, 0.20f, 0.20f, 1.f));
+                if (ImGui::Button("  Stop  "))
+                    m_IsPlaying = false;
+                ImGui::PopStyleColor();
+            }
+        }
+
         // Demo ----------------------------------------------------------------
         if (ImGui::BeginMenu("Demo")) {
             const bool isPhysics  = (m_DemoMode == DemoMode::Physics);
@@ -1419,6 +1580,16 @@ void SandboxApp::RenderDebugUI()
         auto* t = m_SelectedGO->GetTransform();
         XMStoreFloat4x4(&worldF, XMMatrixTranspose(t->GetWorldMatrix()));
 
+        // Undo capture: snapshot local transform at drag-start; push on drag-end.
+        static bool     s_GizmoWasUsing = false;
+        static XMFLOAT3 s_GizmoOldP{}, s_GizmoOldR{}, s_GizmoOldS{};
+        bool nowUsing = ImGuizmo::IsUsing();
+        if (nowUsing && !s_GizmoWasUsing) {
+            s_GizmoOldP = t->GetLocalPosition();
+            s_GizmoOldR = t->GetLocalRotation();
+            s_GizmoOldS = t->GetLocalScale();
+        }
+
         bool changed = ImGuizmo::Manipulate(
             (float*)&viewF, (float*)&projF,
             m_GizmoOp,
@@ -1443,6 +1614,19 @@ void SandboxApp::RenderDebugUI()
             t->SetRotation({ ro[0], ro[1], ro[2] });
             t->SetScale   ({ sc[0], sc[1], sc[2] });
         }
+
+        // Drag just ended — push undo command with old→new local transform.
+        if (!nowUsing && s_GizmoWasUsing) {
+            auto cmd   = std::make_unique<TransformCmd>();
+            cmd->label = "Move " + m_SelectedGO->GetName();
+            cmd->go    = m_SelectedGO;
+            cmd->oldP  = s_GizmoOldP; cmd->oldR = s_GizmoOldR; cmd->oldS = s_GizmoOldS;
+            cmd->newP  = t->GetLocalPosition();
+            cmd->newR  = t->GetLocalRotation();
+            cmd->newS  = t->GetLocalScale();
+            m_UndoStack.PushPreExecuted(std::move(cmd));
+        }
+        s_GizmoWasUsing = nowUsing;
     }
 
     ImGui::End(); // ##DockHost
@@ -1583,12 +1767,35 @@ void SandboxApp::RenderDebugUI()
             {
                 auto* tr = m_SelectedGO->GetTransform();
 
+                // Shared pre-edit snapshot for all three DragFloat3 controls.
+                static DirectX::XMFLOAT3 s_InspOldP{}, s_InspOldR{}, s_InspOldS{};
+
+                // Helper lambda: capture old state when a drag starts.
+                auto CaptureOld = [&]() {
+                    s_InspOldP = tr->GetLocalPosition();
+                    s_InspOldR = tr->GetLocalRotation();
+                    s_InspOldS = tr->GetLocalScale();
+                };
+                // Helper lambda: push undo command when a drag ends.
+                auto PushTransformUndo = [&](const char* lbl) {
+                    auto cmd   = std::make_unique<TransformCmd>();
+                    cmd->label = std::string(lbl) + " " + m_SelectedGO->GetName();
+                    cmd->go    = m_SelectedGO;
+                    cmd->oldP  = s_InspOldP; cmd->oldR = s_InspOldR; cmd->oldS = s_InspOldS;
+                    cmd->newP  = tr->GetLocalPosition();
+                    cmd->newR  = tr->GetLocalRotation();
+                    cmd->newS  = tr->GetLocalScale();
+                    m_UndoStack.PushPreExecuted(std::move(cmd));
+                };
+
                 // Position
                 {
                     auto p = tr->GetLocalPosition();
                     float v[3] = { p.x, p.y, p.z };
                     if (ImGui::DragFloat3("Position", v, 0.05f))
                         tr->SetPosition({ v[0], v[1], v[2] });
+                    if (ImGui::IsItemActivated())             CaptureOld();
+                    if (ImGui::IsItemDeactivatedAfterEdit())  PushTransformUndo("Move");
                 }
                 // Rotation (Euler degrees — XYZ = pitch/yaw/roll)
                 {
@@ -1596,6 +1803,8 @@ void SandboxApp::RenderDebugUI()
                     float v[3] = { r.x, r.y, r.z };
                     if (ImGui::DragFloat3("Rotation", v, 0.5f))
                         tr->SetRotation({ v[0], v[1], v[2] });
+                    if (ImGui::IsItemActivated())             CaptureOld();
+                    if (ImGui::IsItemDeactivatedAfterEdit())  PushTransformUndo("Rotate");
                 }
                 // Scale
                 {
@@ -1603,6 +1812,8 @@ void SandboxApp::RenderDebugUI()
                     float v[3] = { s.x, s.y, s.z };
                     if (ImGui::DragFloat3("Scale", v, 0.01f))
                         tr->SetScale({ v[0], v[1], v[2] });
+                    if (ImGui::IsItemActivated())             CaptureOld();
+                    if (ImGui::IsItemDeactivatedAfterEdit())  PushTransformUndo("Scale");
                 }
             }
 

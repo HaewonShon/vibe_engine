@@ -2,6 +2,7 @@
 #include "Core/Application.h"
 #include "Core/ResourceManager.h"
 #include "Core/Scene.h"
+#include "Core/UndoStack.h"
 #include "Renderer/DX12Context.h"
 #include "Renderer/BasicPipeline.h"
 #include "Renderer/GPUProfiler.h"
@@ -70,6 +71,16 @@ private:
     // ---- Gizmo state --------------------------------------------------------
     ImGuizmo::OPERATION m_GizmoOp    = ImGuizmo::TRANSLATE;
     bool                m_GizmoWorld = true;   // true = WORLD space, false = LOCAL
+
+    // ---- Undo / Redo --------------------------------------------------------
+    VibeEngine::UndoStack m_UndoStack;
+
+    // ---- Play / Stop --------------------------------------------------------
+    bool m_IsPlaying = false;   // false = editor (physics paused), true = play
+
+    // ---- Editor helpers -----------------------------------------------------
+    void DuplicateSelected();   // Ctrl+D
+    void FocusCamera();         // F key — frame selected GO
 
     // ---- Graphics -----------------------------------------------------------
     VibeEngine::DX12Context    m_DX12;

@@ -127,6 +127,7 @@
     <ClInclude Include="UI\UIRenderer.h" />
     <ClInclude Include="UI\ImGuiLayer.h" />
     <ClInclude Include="Core\SceneSerializer.h" />
+    <ClInclude Include="Core\UndoStack.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Core\Application.cpp" />
