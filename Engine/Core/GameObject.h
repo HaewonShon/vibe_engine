@@ -36,6 +36,7 @@ public:
 
     // ---- Identity -----------------------------------------------------------
     const std::string& GetName()  const { return m_Name; }
+    void SetName(const std::string& name) { m_Name = name; }
 
     bool IsActive()          const { return m_Active; }
     void SetActive(bool v)         { m_Active = v; }

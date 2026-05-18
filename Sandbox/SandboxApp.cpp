@@ -20,6 +20,7 @@
 #include "Animation/HierarchicalAnimator.h"
 #include <imgui.h>
 #include <imgui_internal.h>   // DockBuilder* + DockBuilderGetNode
+#include <functional>
 #include <string>
 #include <cstdio>
 #include <algorithm>  // std::min
@@ -1107,12 +1108,10 @@ void SandboxApp::OnUpdate(float dt)
 
         if (!ctrl) {
             if (inp.IsKeyPressed(KeyCode::R))   RestartCurrentDemo();
-            if (inp.IsKeyPressed(KeyCode::Tab))  SwitchDemo();
-
-            if (m_DemoMode == DemoMode::Physics) {
-                if (inp.IsKeyPressed(KeyCode::S)) SaveScene();
-                if (inp.IsKeyPressed(KeyCode::L)) LoadScene();
-            }
+            if (inp.IsKeyPressed(KeyCode::Tab)) SwitchDemo();
+            // S / L — save / load (both demo modes)
+            if (inp.IsKeyPressed(KeyCode::S))   SaveScene();
+            if (inp.IsKeyPressed(KeyCode::L))   LoadScene();
         }
     }
 
@@ -1443,7 +1442,21 @@ void SandboxApp::RenderDebugUI()
     ImGui::PopStyleVar(3);
 
     // ---- Menu bar -----------------------------------------------------------
+    // Flags for deferred popup opening (must be set before EndMenuBar so the
+    // popup can be opened in the same window-level context afterwards).
+    static bool s_OpenSaveDialog = false;
+    static bool s_OpenLoadDialog = false;
+
     if (ImGui::BeginMenuBar()) {
+
+        // File ----------------------------------------------------------------
+        if (ImGui::BeginMenu("File")) {
+            if (ImGui::MenuItem("Save Scene",     "S"))   s_OpenSaveDialog = true;
+            if (ImGui::MenuItem("Save Scene As..."))      s_OpenSaveDialog = true;
+            ImGui::Separator();
+            if (ImGui::MenuItem("Load Scene",     "L"))   s_OpenLoadDialog = true;
+            ImGui::EndMenu();
+        }
 
         // Edit ----------------------------------------------------------------
         if (ImGui::BeginMenu("Edit")) {
@@ -1509,10 +1522,6 @@ void SandboxApp::RenderDebugUI()
         if (ImGui::BeginMenu("Scene")) {
             if (ImGui::MenuItem("Restart", "R"))
                 RestartCurrentDemo();
-            ImGui::BeginDisabled(m_DemoMode != DemoMode::Physics);
-            if (ImGui::MenuItem("Save", "S")) SaveScene();
-            if (ImGui::MenuItem("Load", "L")) LoadScene();
-            ImGui::EndDisabled();
             ImGui::EndMenu();
         }
 
@@ -1544,6 +1553,54 @@ void SandboxApp::RenderDebugUI()
         }
 
         ImGui::EndMenuBar();
+    }
+
+    // ---- Save / Load scene dialogs ------------------------------------------
+    // Open the popups now that we are back in the ##DockHost window context.
+    static char s_ScenePathBuf[512] = {};
+    if (s_OpenSaveDialog) {
+        strncpy_s(s_ScenePathBuf, sizeof(s_ScenePathBuf),
+                  m_SavePath.c_str(), _TRUNCATE);
+        ImGui::OpenPopup("Save Scene##modal");
+        s_OpenSaveDialog = false;
+    }
+    if (s_OpenLoadDialog) {
+        strncpy_s(s_ScenePathBuf, sizeof(s_ScenePathBuf),
+                  m_SavePath.c_str(), _TRUNCATE);
+        ImGui::OpenPopup("Load Scene##modal");
+        s_OpenLoadDialog = false;
+    }
+    if (ImGui::BeginPopupModal("Save Scene##modal", nullptr,
+            ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextUnformatted("Save path:");
+        ImGui::SetNextItemWidth(380.f);
+        ImGui::InputText("##sp", s_ScenePathBuf, sizeof(s_ScenePathBuf));
+        ImGui::Spacing();
+        if (ImGui::Button("Save", ImVec2(90.f, 0.f))) {
+            m_SavePath = s_ScenePathBuf;
+            SaveScene();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(90.f, 0.f)))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+    if (ImGui::BeginPopupModal("Load Scene##modal", nullptr,
+            ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextUnformatted("Load path:");
+        ImGui::SetNextItemWidth(380.f);
+        ImGui::InputText("##lp", s_ScenePathBuf, sizeof(s_ScenePathBuf));
+        ImGui::Spacing();
+        if (ImGui::Button("Load", ImVec2(90.f, 0.f))) {
+            m_SavePath = s_ScenePathBuf;
+            LoadScene();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(90.f, 0.f)))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
     }
 
     // ---- DockSpace ----------------------------------------------------------
@@ -1714,30 +1771,139 @@ void SandboxApp::RenderDebugUI()
         }
 
         if (scene) {
-            const auto& gos = scene->GetGameObjects();
-            for (const auto& go : gos) {
-                const bool isSelected = (m_SelectedGO == go.get());
+            // ---- Per-frame rename state (persistent across frames) ----------
+            static GameObject* s_RenameGO    = nullptr;
+            static char        s_RenameBuf[256] = {};
+            static bool        s_RenameFocus    = false;
 
-                ImGuiTreeNodeFlags flags =
-                    ImGuiTreeNodeFlags_Leaf            |
-                    ImGuiTreeNodeFlags_NoTreePushOnOpen |
-                    ImGuiTreeNodeFlags_SpanAvailWidth;
-                if (isSelected)
-                    flags |= ImGuiTreeNodeFlags_Selected;
+            // ---- Ancestor-check helper for drag&drop cycle prevention -------
+            auto IsAncestorOf = [](Transform* potentialAncestor,
+                                   Transform* t) -> bool {
+                t = t->GetParent();
+                while (t) {
+                    if (t == potentialAncestor) return true;
+                    t = t->GetParent();
+                }
+                return false;
+            };
 
-                // Dim inactive objects
+            // ---- Recursive node draw ----------------------------------------
+            std::function<void(GameObject*)> DrawNode;
+            DrawNode = [&](GameObject* go) {
+                if (!go) return;
+                auto* t = go->GetTransform();
+                if (!t)  return;
+
+                ImGui::PushID(go);
+
+                // Visibility toggle: O = visible, - = hidden (MeshRenderer or GO)
+                auto* mr      = go->GetComponent<MeshRenderer>();
+                bool  visible = mr ? mr->IsEnabled() : go->IsActive();
+                ImGui::PushStyleColor(ImGuiCol_Text,
+                    visible ? ImVec4(1.f, 1.f, 1.f, 1.f)
+                            : ImVec4(0.45f, 0.45f, 0.45f, 1.f));
+                if (ImGui::SmallButton(visible ? "O##vis" : "-##vis")) {
+                    if (mr) mr->SetEnabled(!visible);
+                    else    go->SetActive(!visible);
+                }
+                ImGui::PopStyleColor();
+                ImGui::SameLine();
+
+                // ---- Rename mode — InputText replaces the tree label --------
+                if (s_RenameGO == go) {
+                    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                    if (s_RenameFocus) { ImGui::SetKeyboardFocusHere(); s_RenameFocus = false; }
+                    bool done = ImGui::InputText("##rename", s_RenameBuf,
+                        sizeof(s_RenameBuf),
+                        ImGuiInputTextFlags_EnterReturnsTrue |
+                        ImGuiInputTextFlags_AutoSelectAll);
+                    if (done) {
+                        if (s_RenameBuf[0] != '\0') go->SetName(s_RenameBuf);
+                        s_RenameGO = nullptr;
+                    }
+                    if (ImGui::IsKeyPressed(ImGuiKey_Escape)) s_RenameGO = nullptr;
+                    ImGui::PopID();
+                    return;   // skip tree node while rename text box is open
+                }
+
+                // ---- Tree node ----------------------------------------------
+                const bool hasChildren = !t->GetChildren().empty();
+                const bool isSelected  = (m_SelectedGO == go);
+
+                ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth |
+                                           ImGuiTreeNodeFlags_OpenOnArrow;
+                if (!hasChildren) flags |= ImGuiTreeNodeFlags_Leaf |
+                                           ImGuiTreeNodeFlags_NoTreePushOnOpen;
+                if (isSelected)   flags |= ImGuiTreeNodeFlags_Selected;
                 if (!go->IsActive())
                     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.f));
 
-                ImGui::TreeNodeEx(
-                    static_cast<void*>(go.get()), flags,
-                    "%s", go->GetName().c_str());
+                bool nodeOpen = ImGui::TreeNodeEx(
+                    static_cast<void*>(go), flags, "%s", go->GetName().c_str());
 
-                if (!go->IsActive())
-                    ImGui::PopStyleColor();
+                if (!go->IsActive()) ImGui::PopStyleColor();
 
-                if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
-                    m_SelectedGO = go.get();
+                // Click → select (ignore toggle-open clicks)
+                if (ImGui::IsItemClicked(ImGuiMouseButton_Left) &&
+                    !ImGui::IsItemToggledOpen())
+                    m_SelectedGO = go;
+
+                // Double-click → start rename
+                if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
+                    s_RenameGO    = go;
+                    s_RenameFocus = true;
+                    strncpy_s(s_RenameBuf, sizeof(s_RenameBuf),
+                              go->GetName().c_str(), _TRUNCATE);
+                }
+
+                // Drag source: carry a raw GO* pointer
+                if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
+                    ImGui::SetDragDropPayload("GO_REPARENT", &go, sizeof(go));
+                    ImGui::Text("Reparent: %s", go->GetName().c_str());
+                    ImGui::EndDragDropSource();
+                }
+
+                // Drop target: make dragged GO a child of this GO
+                if (ImGui::BeginDragDropTarget()) {
+                    if (const ImGuiPayload* pl =
+                            ImGui::AcceptDragDropPayload("GO_REPARENT")) {
+                        GameObject* dragged = *(GameObject**)pl->Data;
+                        if (dragged && dragged != go &&
+                            !IsAncestorOf(dragged->GetTransform(), go->GetTransform()))
+                            dragged->GetTransform()->SetParent(go->GetTransform());
+                    }
+                    ImGui::EndDragDropTarget();
+                }
+
+                // Recurse children (only when the node is open)
+                if (hasChildren && nodeOpen) {
+                    for (auto* child : t->GetChildren())
+                        if (child && child->GetGameObject())
+                            DrawNode(child->GetGameObject());
+                    ImGui::TreePop();
+                }
+
+                ImGui::PopID();
+            }; // DrawNode
+
+            // Draw only root GOs (Transform has no parent)
+            for (const auto& goPtr : scene->GetGameObjects()) {
+                auto* t = goPtr ? goPtr->GetTransform() : nullptr;
+                if (t && t->GetParent() == nullptr)
+                    DrawNode(goPtr.get());
+            }
+
+            // Drop onto blank panel area → unparent (make root-level)
+            ImVec2 avail = ImGui::GetContentRegionAvail();
+            if (avail.y < 4.f) avail.y = 4.f;
+            ImGui::Dummy(avail);
+            if (ImGui::BeginDragDropTarget()) {
+                if (const ImGuiPayload* pl =
+                        ImGui::AcceptDragDropPayload("GO_REPARENT")) {
+                    GameObject* dragged = *(GameObject**)pl->Data;
+                    if (dragged) dragged->GetTransform()->SetParent(nullptr);
+                }
+                ImGui::EndDragDropTarget();
             }
         } else {
             ImGui::TextDisabled("(no active scene)");
