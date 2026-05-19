@@ -1414,6 +1414,9 @@ void SandboxApp::RenderDebugUI()
     // (ImGuiLayer::Begin() calls NewFrame, so this is the right place).
     ImGuizmo::BeginFrame();
 
+    // Function-wide statics shared between the menu bar and draw calls.
+    static bool s_ShowGrid = true;
+
     auto* scene = SceneManager::Get().GetActiveScene();
 
     // =========================================================================
@@ -1529,6 +1532,8 @@ void SandboxApp::RenderDebugUI()
         if (ImGui::BeginMenu("Layout")) {
             if (ImGui::MenuItem("Reset to Default"))
                 m_ResetLayout = true;
+            ImGui::Separator();
+            ImGui::MenuItem("Show Grid", nullptr, &s_ShowGrid);
             ImGui::EndMenu();
         }
 
@@ -1617,11 +1622,10 @@ void SandboxApp::RenderDebugUI()
     }
 
     // =========================================================================
-    // Transform Gizmo — rendered as an overlay on the central 3D viewport
+    // Grid + Gizmo + Selection outline — all share the same ImGuizmo context.
     // =========================================================================
-    if (m_SelectedGO && m_Camera) {
+    if (m_Camera) {
         using namespace DirectX;
-        // Try to use the passthrough central node rect; fall back to full viewport.
         ImGuiDockNode* central = ImGui::DockBuilderGetCentralNode(dockspaceID);
         ImVec2 gizmoPos  = central ? central->Pos  : vp->WorkPos;
         ImVec2 gizmoSize = central ? central->Size : vp->WorkSize;
@@ -1631,59 +1635,111 @@ void SandboxApp::RenderDebugUI()
         ImGuizmo::SetRect(gizmoPos.x, gizmoPos.y, gizmoSize.x, gizmoSize.y);
 
         // DX row-major → ImGuizmo column-major: XMMatrixTranspose before storing.
-        XMFLOAT4X4 viewF, projF, worldF;
+        XMFLOAT4X4 viewF, projF;
         XMStoreFloat4x4(&viewF, XMMatrixTranspose(m_Camera->GetViewMatrix()));
         XMStoreFloat4x4(&projF, XMMatrixTranspose(m_Camera->GetProjectionMatrix()));
-        auto* t = m_SelectedGO->GetTransform();
-        XMStoreFloat4x4(&worldF, XMMatrixTranspose(t->GetWorldMatrix()));
 
-        // Undo capture: snapshot local transform at drag-start; push on drag-end.
-        static bool     s_GizmoWasUsing = false;
-        static XMFLOAT3 s_GizmoOldP{}, s_GizmoOldR{}, s_GizmoOldS{};
-        bool nowUsing = ImGuizmo::IsUsing();
-        if (nowUsing && !s_GizmoWasUsing) {
-            s_GizmoOldP = t->GetLocalPosition();
-            s_GizmoOldR = t->GetLocalRotation();
-            s_GizmoOldS = t->GetLocalScale();
+        // ---- World XZ grid --------------------------------------------------
+        // Identity matrix is self-transposed — no extra transpose needed.
+        if (s_ShowGrid) {
+            XMFLOAT4X4 identF;
+            XMStoreFloat4x4(&identF, XMMatrixIdentity());
+            ImGuizmo::DrawGrid((float*)&viewF, (float*)&projF, (float*)&identF, 20.f);
         }
 
-        bool changed = ImGuizmo::Manipulate(
-            (float*)&viewF, (float*)&projF,
-            m_GizmoOp,
-            m_GizmoWorld ? ImGuizmo::WORLD : ImGuizmo::LOCAL,
-            (float*)&worldF);
+        // ---- Transform gizmo + outline (only when a GO is selected) ---------
+        if (m_SelectedGO) {
+            auto* t = m_SelectedGO->GetTransform();
+            XMFLOAT4X4 worldF;
+            XMStoreFloat4x4(&worldF, XMMatrixTranspose(t->GetWorldMatrix()));
 
-        if (changed) {
-            float tr[3], ro[3], sc[3];
-            ImGuizmo::DecomposeMatrixToComponents((float*)&worldF, tr, ro, sc);
-
-            if (t->GetParent()) {
-                // Compute local matrix: newWorld * inverse(parentWorld)
-                XMMATRIX newWorldDX  = XMMatrixTranspose(XMLoadFloat4x4(&worldF));
-                XMMATRIX parentWorld = t->GetParent()->GetWorldMatrix();
-                XMMATRIX newLocalDX  = newWorldDX * XMMatrixInverse(nullptr, parentWorld);
-                XMFLOAT4X4 localF;
-                XMStoreFloat4x4(&localF, XMMatrixTranspose(newLocalDX));
-                ImGuizmo::DecomposeMatrixToComponents((float*)&localF, tr, ro, sc);
+            // Undo capture: snapshot at drag-start, push on drag-end.
+            static bool     s_GizmoWasUsing = false;
+            static XMFLOAT3 s_GizmoOldP{}, s_GizmoOldR{}, s_GizmoOldS{};
+            bool nowUsing = ImGuizmo::IsUsing();
+            if (nowUsing && !s_GizmoWasUsing) {
+                s_GizmoOldP = t->GetLocalPosition();
+                s_GizmoOldR = t->GetLocalRotation();
+                s_GizmoOldS = t->GetLocalScale();
             }
 
-            t->SetPosition({ tr[0], tr[1], tr[2] });
-            t->SetRotation({ ro[0], ro[1], ro[2] });
-            t->SetScale   ({ sc[0], sc[1], sc[2] });
-        }
+            // Snap (Ctrl held): Translate=0.5 m, Rotate=15°, Scale=0.1
+            float snapV[3] = { 0.5f, 0.5f, 0.5f };
+            if (m_GizmoOp == ImGuizmo::ROTATE) snapV[0] = snapV[1] = snapV[2] = 15.f;
+            if (m_GizmoOp == ImGuizmo::SCALE)  snapV[0] = snapV[1] = snapV[2] = 0.1f;
+            bool useSnap = InputManager::Get().IsKeyDown(KeyCode::Ctrl);
 
-        // Drag just ended — push undo command with old→new local transform.
-        if (!nowUsing && s_GizmoWasUsing) {
-            auto cmd   = std::make_unique<TransformCmd>();
-            cmd->label = "Move " + m_SelectedGO->GetName();
-            cmd->go    = m_SelectedGO;
-            cmd->oldP  = s_GizmoOldP; cmd->oldR = s_GizmoOldR; cmd->oldS = s_GizmoOldS;
-            cmd->newP  = t->GetLocalPosition();
-            cmd->newR  = t->GetLocalRotation();
-            cmd->newS  = t->GetLocalScale();
-            m_UndoStack.PushPreExecuted(std::move(cmd));
+            bool changed = ImGuizmo::Manipulate(
+                (float*)&viewF, (float*)&projF,
+                m_GizmoOp,
+                m_GizmoWorld ? ImGuizmo::WORLD : ImGuizmo::LOCAL,
+                (float*)&worldF,
+                nullptr,
+                useSnap ? snapV : nullptr);
+
+            if (changed) {
+                float tr[3], ro[3], sc[3];
+                ImGuizmo::DecomposeMatrixToComponents((float*)&worldF, tr, ro, sc);
+                if (t->GetParent()) {
+                    XMMATRIX newWorldDX  = XMMatrixTranspose(XMLoadFloat4x4(&worldF));
+                    XMMATRIX parentWorld = t->GetParent()->GetWorldMatrix();
+                    XMMATRIX newLocalDX  = newWorldDX * XMMatrixInverse(nullptr, parentWorld);
+                    XMFLOAT4X4 localF;
+                    XMStoreFloat4x4(&localF, XMMatrixTranspose(newLocalDX));
+                    ImGuizmo::DecomposeMatrixToComponents((float*)&localF, tr, ro, sc);
+                }
+                t->SetPosition({ tr[0], tr[1], tr[2] });
+                t->SetRotation({ ro[0], ro[1], ro[2] });
+                t->SetScale   ({ sc[0], sc[1], sc[2] });
+            }
+
+            // Drag ended → push undo.
+            if (!nowUsing && s_GizmoWasUsing) {
+                auto cmd   = std::make_unique<TransformCmd>();
+                cmd->label = "Move " + m_SelectedGO->GetName();
+                cmd->go    = m_SelectedGO;
+                cmd->oldP  = s_GizmoOldP; cmd->oldR = s_GizmoOldR; cmd->oldS = s_GizmoOldS;
+                cmd->newP  = t->GetLocalPosition();
+                cmd->newR  = t->GetLocalRotation();
+                cmd->newS  = t->GetLocalScale();
+                m_UndoStack.PushPreExecuted(std::move(cmd));
+            }
+            s_GizmoWasUsing = nowUsing;
+
+            // ---- Selection outline — screen-space AABB rect -----------------
+            // Project 8 unit-cube corners through WorldViewProjection.
+            // The world matrix already encodes scale, so unit corners are correct.
+            static const XMFLOAT3 kC[8] = {
+                {-0.5f,-0.5f,-0.5f},{0.5f,-0.5f,-0.5f},
+                {-0.5f, 0.5f,-0.5f},{0.5f, 0.5f,-0.5f},
+                {-0.5f,-0.5f, 0.5f},{0.5f,-0.5f, 0.5f},
+                {-0.5f, 0.5f, 0.5f},{0.5f, 0.5f, 0.5f}
+            };
+            XMMATRIX wvp = t->GetWorldMatrix() * m_Camera->GetViewProjectionMatrix();
+            float sMinX =  1e9f, sMinY =  1e9f;
+            float sMaxX = -1e9f, sMaxY = -1e9f;
+            bool anyVis = false;
+            for (const auto& c : kC) {
+                XMVECTOR clip = XMVector4Transform(
+                    XMVectorSet(c.x, c.y, c.z, 1.f), wvp);
+                XMFLOAT4 cf; XMStoreFloat4(&cf, clip);
+                if (cf.w <= 0.f) continue;    // behind camera
+                anyVis = true;
+                float nx = cf.x / cf.w;
+                float ny = cf.y / cf.w;
+                float sx = gizmoPos.x + (nx * 0.5f + 0.5f) * gizmoSize.x;
+                float sy = gizmoPos.y + (1.f - (ny * 0.5f + 0.5f)) * gizmoSize.y;
+                if (sx < sMinX) sMinX = sx;  if (sx > sMaxX) sMaxX = sx;
+                if (sy < sMinY) sMinY = sy;  if (sy > sMaxY) sMaxY = sy;
+            }
+            if (anyVis && sMinX < sMaxX && sMinY < sMaxY) {
+                constexpr float kPad = 4.f;
+                ImGui::GetWindowDrawList()->AddRect(
+                    { sMinX - kPad, sMinY - kPad },
+                    { sMaxX + kPad, sMaxY + kPad },
+                    IM_COL32(255, 200, 30, 210), 2.f, 0, 2.f);
+            }
         }
-        s_GizmoWasUsing = nowUsing;
     }
 
     ImGui::End(); // ##DockHost
@@ -1997,6 +2053,14 @@ void SandboxApp::RenderDebugUI()
                 m_GizmoOp = ImGuizmo::SCALE;
             ImGui::SameLine();
             ImGui::Checkbox("World", &m_GizmoWorld);
+            // Snap hint: show active snap value when Ctrl is held
+            if (InputManager::Get().IsKeyDown(KeyCode::Ctrl)) {
+                ImGui::SameLine();
+                const char* snapHint =
+                    m_GizmoOp == ImGuizmo::ROTATE ? "Snap 15°" :
+                    m_GizmoOp == ImGuizmo::SCALE  ? "Snap 0.1" : "Snap 0.5m";
+                ImGui::TextColored(ImVec4(1.f, 0.85f, 0.2f, 1.f), "%s", snapHint);
+            }
 
             // ---- MeshRenderer / Material -----------------------------------
             if (auto* mr = m_SelectedGO->GetComponent<MeshRenderer>()) {
