@@ -2021,6 +2021,60 @@ void SandboxApp::RenderDebugUI()
                         emiChanged |= ImGui::DragFloat("Emissive Int.", &emiI, 0.05f, 0.f, 50.f);
                         if (emiChanged)
                             mat->SetEmissive(emi, emiI);
+
+                        // ---- Texture slots ----------------------------------
+                        ImGui::Spacing();
+                        ImGui::TextDisabled("Textures");
+
+                        // Path buffers — cleared when the selected GO changes.
+                        static GameObject* s_LastTexGO = nullptr;
+                        static char s_AlbedoBuf[512]   = {};
+                        static char s_NormalBuf[512]    = {};
+                        if (s_LastTexGO != m_SelectedGO) {
+                            s_AlbedoBuf[0] = '\0';
+                            s_NormalBuf[0] = '\0';
+                            s_LastTexGO    = m_SelectedGO;
+                        }
+
+                        // Load texture from narrow UTF-8 path via ResourceManager cache.
+                        // ResourceManager keeps the shared_ptr alive, so raw ptr is safe.
+                        auto LoadAndSet = [&](const char* buf, bool isNormal) {
+                            if (!buf[0]) return;
+                            int n = MultiByteToWideChar(CP_UTF8, 0, buf, -1, nullptr, 0);
+                            if (n <= 1) return;
+                            std::wstring wp(n - 1, L'\0');
+                            MultiByteToWideChar(CP_UTF8, 0, buf, -1, &wp[0], n);
+                            auto tex = ResourceManager::Get().GetOrLoadTexture(wp);
+                            if (tex) {
+                                if (isNormal) mat->SetNormalMap(tex.get());
+                                else          mat->SetTexture  (tex.get());
+                            }
+                        };
+
+                        // Albedo texture row
+                        {
+                            bool has = (mat->GetTexture() != nullptr);
+                            ImGui::TextColored(
+                                has ? ImVec4(0.4f, 0.9f, 0.4f, 1.f)
+                                    : ImVec4(0.6f, 0.6f, 0.6f, 1.f),
+                                has ? "Albedo [set]" : "Albedo [none]");
+                            ImGui::SetNextItemWidth(-58.f);
+                            ImGui::InputText("##albpath", s_AlbedoBuf, sizeof(s_AlbedoBuf));
+                            ImGui::SameLine();
+                            if (ImGui::SmallButton("Load##ta")) LoadAndSet(s_AlbedoBuf, false);
+                        }
+                        // Normal map row
+                        {
+                            bool has = (mat->GetNormalMap() != nullptr);
+                            ImGui::TextColored(
+                                has ? ImVec4(0.4f, 0.9f, 0.4f, 1.f)
+                                    : ImVec4(0.6f, 0.6f, 0.6f, 1.f),
+                                has ? "Normal  [set]" : "Normal  [none]");
+                            ImGui::SetNextItemWidth(-58.f);
+                            ImGui::InputText("##norpath", s_NormalBuf, sizeof(s_NormalBuf));
+                            ImGui::SameLine();
+                            if (ImGui::SmallButton("Load##tn")) LoadAndSet(s_NormalBuf, true);
+                        }
                     } else {
                         ImGui::TextDisabled("(no material)");
                     }
@@ -2046,6 +2100,95 @@ void SandboxApp::RenderDebugUI()
                     if (ImGui::DragFloat("Move Speed",   &mspd,  0.1f,  0.1f,  50.f))
                         cam->SetMoveSpeed(mspd);
                 }
+            }
+
+            // ---- Rigidbody -------------------------------------------------
+            if (auto* rb = m_SelectedGO->GetComponent<Rigidbody>()) {
+                ImGui::Separator();
+                if (ImGui::CollapsingHeader("Rigidbody",
+                        ImGuiTreeNodeFlags_DefaultOpen))
+                {
+                    // Shape type + per-shape dimension controls
+                    const char* shapeNames[] = { "Box", "Sphere", "Capsule" };
+                    int shapeIdx = static_cast<int>(rb->GetShapeType());
+                    ImGui::TextDisabled("Shape: %s", shapeNames[shapeIdx]);
+
+                    if (rb->GetShapeType() == Rigidbody::ShapeType::Box) {
+                        auto he = rb->GetHalfExtents();
+                        float v[3] = { he.x, he.y, he.z };
+                        if (ImGui::DragFloat3("Half Extents", v, 0.01f, 0.01f, 100.f))
+                            rb->SetBoxHalfExtents({ v[0], v[1], v[2] });
+                    } else if (rb->GetShapeType() == Rigidbody::ShapeType::Sphere) {
+                        float r = rb->GetRadius();
+                        if (ImGui::DragFloat("Radius", &r, 0.01f, 0.01f, 100.f))
+                            rb->SetSphereRadius(r);
+                    } else {
+                        float r  = rb->GetRadius();
+                        float hh = rb->GetCapsuleHalfHeight();
+                        if (ImGui::DragFloat("Cap Radius",  &r,  0.01f, 0.01f, 50.f))
+                            rb->SetCapsuleShape(r, hh);
+                        if (ImGui::DragFloat("Cap HalfH",   &hh, 0.01f, 0.01f, 50.f))
+                            rb->SetCapsuleShape(r, hh);
+                    }
+
+                    // Physics properties
+                    ImGui::Spacing();
+                    float mass = rb->GetMass();
+                    float rest = rb->GetRestitution();
+                    float fric = rb->GetFriction();
+                    if (ImGui::DragFloat("Mass",         &mass, 0.1f,  0.f,  1000.f))
+                        rb->SetMass(mass);
+                    if (ImGui::SliderFloat("Restitution", &rest, 0.f,  1.f))
+                        rb->SetRestitution(rest);
+                    if (ImGui::SliderFloat("Friction",    &fric, 0.f,  1.f))
+                        rb->SetFriction(fric);
+
+                    // State flags
+                    ImGui::Spacing();
+                    bool isStatic    = rb->IsStatic();
+                    bool isKinematic = rb->IsKinematic();
+                    bool isTrigger   = rb->IsTrigger();
+                    if (ImGui::Checkbox("Static",    &isStatic))    rb->SetStatic(isStatic);
+                    ImGui::SameLine();
+                    if (ImGui::Checkbox("Kinematic", &isKinematic)) rb->SetKinematic(isKinematic);
+                    ImGui::SameLine();
+                    if (ImGui::Checkbox("Trigger",   &isTrigger))   rb->SetTrigger(isTrigger);
+
+                    // Runtime velocity — read-only display when body is active
+                    if (rb->IsValid()) {
+                        ImGui::Spacing();
+                        auto lv = rb->GetLinearVelocity();
+                        ImGui::TextDisabled("Vel (%.2f, %.2f, %.2f)", lv.x, lv.y, lv.z);
+                    }
+                }
+            }
+
+            // ---- Add Component drop-down -----------------------------------
+            ImGui::Spacing();
+            ImGui::Separator();
+            if (ImGui::Button("+ Add Component", ImVec2(-1.f, 0.f)))
+                ImGui::OpenPopup("##add_comp");
+            if (ImGui::BeginPopup("##add_comp")) {
+                ImGui::TextDisabled("Select component to add");
+                ImGui::Separator();
+                if (ImGui::MenuItem("Rigidbody") &&
+                        !m_SelectedGO->HasComponent<Rigidbody>())
+                    m_SelectedGO->AddComponent<Rigidbody>();
+                if (ImGui::MenuItem("Camera") &&
+                        !m_SelectedGO->HasComponent<Camera>()) {
+                    auto* cam = m_SelectedGO->AddComponent<Camera>();
+                    const auto* win = GetWindow();
+                    if (win && win->GetHeight() > 0)
+                        cam->SetAspect(static_cast<float>(win->GetWidth()) /
+                                       static_cast<float>(win->GetHeight()));
+                }
+                if (ImGui::MenuItem("Animator") &&
+                        !m_SelectedGO->HasComponent<Animator>())
+                    m_SelectedGO->AddComponent<Animator>();
+                if (ImGui::MenuItem("HierarchicalAnimator") &&
+                        !m_SelectedGO->HasComponent<HierarchicalAnimator>())
+                    m_SelectedGO->AddComponent<HierarchicalAnimator>();
+                ImGui::EndPopup();
             }
         }
 
